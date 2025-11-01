@@ -1,0 +1,300 @@
+import { httpClient } from "../httpClient";
+
+export interface DressDetails {
+  id: string;
+  name: string;
+  reference: string;
+  price_ht: string | number;
+  price_ttc: string | number;
+  price_per_day_ht?: string | number | null;
+  price_per_day_ttc?: string | number | null;
+  images: string[];
+  created_at?: string;
+  created_by?: string | null;
+  updated_at?: string | null;
+  updated_by?: string | null;
+  deleted_at?: string | null;
+  deleted_by?: string | null;
+  published_at?: string | null;
+  published_by?: string | null;
+  published_post?: boolean;
+  type_id?: string | null;
+  type_name?: string | null;
+  type_description?: string | null;
+  size_id?: string | null;
+  size_name?: string | null;
+  condition_id?: string | null;
+  condition_name?: string | null;
+  color_id?: string | null;
+  color_name?: string | null;
+  hex_code?: string | null;
+  type?: {
+    id: string;
+    name: string;
+    description?: string | null;
+  } | null;
+  size?: {
+    id: string;
+    name: string;
+  } | null;
+  condition?: {
+    id: string;
+    name: string;
+    description?: string | null;
+  } | null;
+  color?: {
+    id: string;
+    name: string;
+    hex_code?: string | null;
+  } | null;
+}
+
+export interface DressListResponse {
+  data: DressDetails[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface DressUploadFile {
+  id: string;
+  name: string;
+  url: string;
+}
+
+export interface DressAvailability {
+  id: string;
+  name?: string;
+  reference?: string;
+  price_ht?: string | number;
+  price_ttc?: string | number;
+  price_per_day_ht?: string | number;
+  price_per_day_ttc?: string | number;
+  images?: string[];
+  isAvailable: boolean;
+  current_contract?: {
+    start_datetime: string;
+    end_datetime: string;
+  } | null;
+}
+
+export interface DressAvailabilityResponse {
+  data: DressAvailability[];
+  count: number;
+  filters: {
+    start: string;
+    end: string;
+  };
+}
+
+export type DressUpdatePayload = {
+  name: string;
+  reference: string;
+  price_ht: number;
+  price_ttc: number;
+  price_per_day_ht?: number | null;
+  price_per_day_ttc?: number | null;
+  type_id: string;
+  size_id: string;
+  condition_id: string;
+  color_id?: string | null;
+  images: string[];
+};
+
+const sanitizeImages = (value: unknown): string[] => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => (typeof item === "string" ? item.trim() : ""))
+    .filter((item) => item.length > 0);
+};
+
+const normalizeDress = (payload: any): DressDetails => {
+  if (!payload || typeof payload !== "object") {
+    throw new Error("Payload robe invalide");
+  }
+
+  const type = payload.type ?? null;
+  const size = payload.size ?? null;
+  const condition = payload.condition ?? null;
+  const color = payload.color ?? null;
+
+  return {
+    id: payload.id,
+    name: payload.name ?? "",
+    reference: payload.reference ?? "",
+    price_ht: payload.price_ht ?? 0,
+    price_ttc: payload.price_ttc ?? 0,
+    price_per_day_ht: payload.price_per_day_ht ?? null,
+    price_per_day_ttc: payload.price_per_day_ttc ?? null,
+    images: sanitizeImages(payload.images),
+    created_at: payload.created_at ?? undefined,
+    created_by: payload.created_by ?? null,
+    updated_at: payload.updated_at ?? null,
+    updated_by: payload.updated_by ?? null,
+    deleted_at: payload.deleted_at ?? null,
+    deleted_by: payload.deleted_by ?? null,
+    published_at: payload.published_at ?? null,
+    published_by: payload.published_by ?? null,
+    published_post: Boolean(payload.published_post),
+    type_id: payload.type_id ?? type?.id ?? null,
+    type_name: payload.type_name ?? type?.name ?? null,
+    type_description: payload.type_description ?? type?.description ?? null,
+    size_id: payload.size_id ?? size?.id ?? null,
+    size_name: payload.size_name ?? size?.name ?? null,
+    condition_id: payload.condition_id ?? condition?.id ?? null,
+    condition_name: payload.condition_name ?? condition?.name ?? null,
+    color_id: payload.color_id ?? color?.id ?? null,
+    color_name: payload.color_name ?? color?.name ?? null,
+    hex_code: payload.hex_code ?? color?.hex_code ?? null,
+    type,
+    size,
+    condition,
+    color,
+  };
+};
+
+const extractArray = (res: any): any[] => {
+  if (Array.isArray(res?.data)) return res.data;
+  if (Array.isArray(res)) return res;
+  return [];
+};
+
+const normalizeListResponse = (res: any, fallbackLimit?: number): DressListResponse => {
+  const entries = extractArray(res);
+  const data = entries.map(normalizeDress);
+  const limit = Number(((res?.limit ?? fallbackLimit ?? entries.length) ?? 1));
+  const total = Number(res?.total ?? res?.count ?? entries.length ?? 0);
+  const pageFromOffset =
+    typeof res?.offset === "number" && limit
+      ? Math.floor(res.offset / limit) + 1
+      : undefined;
+  const page = Number(res?.page ?? pageFromOffset ?? 1);
+
+  return {
+    data,
+    total,
+    page,
+    limit,
+  };
+};
+
+const extractUploadList = (res: any): DressUploadFile[] => {
+  const files = Array.isArray(res?.files) ? res.files : Array.isArray(res?.data?.files) ? res.data.files : [];
+  return files
+    .filter((file) => file && typeof file === "object")
+    .map((file) => ({
+      id: String(file.id ?? file.name ?? ""),
+      name: String(file.name ?? file.id ?? ""),
+      url: String(file.url ?? ""),
+    }))
+    .filter((file) => file.url.length > 0);
+};
+
+export const DressesAPI = {
+  async list(params: { limit?: number; offset?: number; type?: string; size?: string; color?: string } = {}): Promise<DressListResponse> {
+    const searchParams = new URLSearchParams();
+    if (typeof params.limit === "number") searchParams.set("limit", String(params.limit));
+    if (typeof params.offset === "number") searchParams.set("offset", String(params.offset));
+    if (params.type) searchParams.set("type", params.type);
+    if (params.size) searchParams.set("size", params.size);
+    if (params.color) searchParams.set("color", params.color);
+
+    const query = searchParams.toString();
+    const res = await httpClient.get(`/dresses${query ? `?${query}` : ""}`);
+    return normalizeListResponse(res, params.limit);
+  },
+
+  async listDetails(page = 1, limit?: number): Promise<DressListResponse> {
+    const search = new URLSearchParams({ page: String(page) });
+    if (limit) search.set("limit", String(limit));
+    const res = await httpClient.get(`/dresses/details-view?${search.toString()}`);
+    return normalizeListResponse(res, limit);
+  },
+
+  async create(payload: DressUpdatePayload): Promise<DressDetails> {
+    const res = await httpClient.post("/dresses", payload);
+    if (res?.data && typeof res.data === "object") {
+      return normalizeDress(res.data);
+    }
+    return normalizeDress(res);
+  },
+
+  async getById(dressId: string): Promise<DressDetails> {
+    const res = await httpClient.get(`/dresses/${dressId}`);
+    if (res?.data && typeof res.data === "object") {
+      return normalizeDress(res.data);
+    }
+    return normalizeDress(res);
+  },
+
+  async update(dressId: string, payload: DressUpdatePayload): Promise<DressDetails> {
+    const res = await httpClient.put(`/dresses/${dressId}`, payload);
+    if (res?.data && typeof res.data === "object") {
+      return normalizeDress(res.data);
+    }
+    return normalizeDress(res);
+  },
+
+  async softDelete(dressId: string): Promise<DressDetails> {
+    const res = await httpClient.patch(`/dresses/${dressId}/soft`);
+    if (res?.data && typeof res.data === "object") {
+      return normalizeDress(res.data);
+    }
+    return normalizeDress(res);
+  },
+
+  async hardDelete(dressId: string): Promise<void> {
+    await httpClient.delete(`/dresses/${dressId}/hard`);
+  },
+
+  async uploadImages(files: File[]): Promise<DressUploadFile[]> {
+    if (!files.length) return [];
+    const formData = new FormData();
+    files.forEach((file) => {
+      formData.append("images", file);
+    });
+
+    const res = await httpClient("/dress-storage", {
+      method: "POST",
+      body: formData,
+      headers: {
+        Accept: "application/json",
+      },
+    });
+    return extractUploadList(res);
+  },
+
+  async deleteImage(storageId: string): Promise<DressDetails> {
+    const res = await httpClient.delete(`/dress-storage/${storageId}`);
+    if (res?.data && typeof res.data === "object") {
+      return normalizeDress(res.data);
+    }
+    return normalizeDress(res);
+  },
+
+  async listAvailability(start: string, end: string): Promise<DressAvailabilityResponse> {
+    const search = new URLSearchParams({ start, end });
+    const res = await httpClient.get(`/dresses/availability?${search.toString()}`);
+    const entries = extractArray(res).map((item) => ({
+      id: String(item.id),
+      name: item.name ?? undefined,
+      reference: item.reference ?? undefined,
+      price_ht: item.price_ht ?? undefined,
+      price_ttc: item.price_ttc ?? undefined,
+      price_per_day_ht: item.price_per_day_ht ?? undefined,
+      price_per_day_ttc: item.price_per_day_ttc ?? undefined,
+      images: sanitizeImages(item.images),
+      isAvailable: Boolean(item.isAvailable),
+      current_contract: item.current_contract ?? null,
+    }));
+
+    return {
+      data: entries,
+      count: Number(res?.count ?? entries.length),
+      filters: {
+        start: res?.filters?.start ?? start,
+        end: res?.filters?.end ?? end,
+      },
+    };
+  },
+};
