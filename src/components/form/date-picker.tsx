@@ -1,19 +1,22 @@
-import { useEffect } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import flatpickr from "flatpickr";
 import "flatpickr/dist/flatpickr.css";
 import Label from "./Label";
 import { CalenderIcon } from "../../icons";
 import Hook = flatpickr.Options.Hook;
 import DateOption = flatpickr.Options.DateOption;
+import Options = flatpickr.Options.Options;
 import { French } from "flatpickr/dist/l10n/fr.js";
+import type { Instance as FlatpickrInstance } from "flatpickr/dist/types/instance";
 
 type PropsType = {
   id: string;
   mode?: "single" | "multiple" | "range" | "time";
   onChange?: Hook | Hook[];
-  defaultDate?: DateOption;
+  defaultDate?: DateOption | DateOption[];
   label?: string;
   placeholder?: string;
+  options?: Partial<Options>;
 };
 
 export default function DatePicker({
@@ -23,24 +26,62 @@ export default function DatePicker({
   label,
   defaultDate,
   placeholder,
+  options,
 }: PropsType) {
+  const optionsSignature = useMemo(() => JSON.stringify(options ?? {}), [options]);
+  const flatpickrRef = useRef<FlatpickrInstance | null>(null);
+
   useEffect(() => {
-    const flatPickr = flatpickr(`#${id}`, {
-      mode: mode || "single",
+    const baseOptions: Partial<Options> = {
       static: true,
       monthSelectorType: "static",
       dateFormat: "d/m/Y",
-      defaultDate,
       locale: French,
-      onChange,
-    });
+      ...options,
+    };
+
+    if (mode) {
+      baseOptions.mode = mode;
+    } else if (!baseOptions.mode) {
+      baseOptions.mode = "single";
+    }
+
+    if (defaultDate !== undefined) {
+      baseOptions.defaultDate = defaultDate;
+    }
+
+    if (onChange) {
+      baseOptions.onChange = onChange;
+    }
+
+    if (flatpickrRef.current) {
+      flatpickrRef.current.destroy();
+      flatpickrRef.current = null;
+    }
+
+    const instance = flatpickr(`#${id}`, baseOptions);
+
+    flatpickrRef.current = Array.isArray(instance) ? instance[0] ?? null : instance;
 
     return () => {
-      if (!Array.isArray(flatPickr)) {
-        flatPickr.destroy();
+      if (flatpickrRef.current) {
+        flatpickrRef.current.destroy();
+        flatpickrRef.current = null;
       }
     };
-  }, [mode, onChange, id, defaultDate]);
+  }, [mode, onChange, id, optionsSignature]);
+
+  useEffect(() => {
+    const instance = flatpickrRef.current;
+    if (!instance) return;
+
+    if (defaultDate === undefined) {
+      instance.clear();
+      return;
+    }
+
+    instance.setDate(defaultDate, false);
+  }, [defaultDate]);
 
   return (
     <div>

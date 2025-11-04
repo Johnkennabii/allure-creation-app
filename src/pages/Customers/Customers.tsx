@@ -1,10 +1,14 @@
 import type React from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import PageMeta from "../../components/common/PageMeta";
 import PageBreadcrumb from "../../components/common/PageBreadCrumb";
 import SpinnerOne from "../../components/ui/spinner/SpinnerOne";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "../../components/ui/table";
 import Input from "../../components/form/input/InputField";
+import Select from "../../components/form/Select";
+import Label from "../../components/form/Label";
+import Checkbox from "../../components/form/input/Checkbox";
 import Button from "../../components/ui/button/Button";
 import Badge from "../../components/ui/badge/Badge";
 import { Modal } from "../../components/ui/modal";
@@ -13,9 +17,14 @@ import RightDrawer from "../../components/ui/drawer/RightDrawer";
 import { useNotification } from "../../context/NotificationContext";
 import { useAuth } from "../../context/AuthContext";
 import { CustomersAPI, type Customer, type CustomerListResponse } from "../../api/endpoints/customers";
-import { ContractsAPI, type ContractFullView } from "../../api/endpoints/contracts";
-import { PencilIcon, CloseLineIcon, TrashBinIcon, EyeIcon } from "../../icons";
+import { ContractsAPI, type ContractFullView, type ContractUpdatePayload } from "../../api/endpoints/contracts";
+import { ContractAddonsAPI, type ContractAddon as ContractAddonOption } from "../../api/endpoints/contractAddons";
+import { PencilIcon, CloseLineIcon, TrashBinIcon } from "../../icons";
+import { IoEyeOutline } from "react-icons/io5";
 import DatePicker from "../../components/form/date-picker";
+import type { QuickSearchNavigationPayload } from "../../types/quickSearch";
+
+const DEFAULT_VAT_RATIO = 0.8333333333;
 
 interface CustomerRow extends Customer {
   fullName: string;
@@ -39,6 +48,35 @@ type ConfirmState = {
   customer: CustomerRow | null;
 };
 
+type ContractEditFormState = {
+  status: string;
+  startDate: string;
+  endDate: string;
+  depositPaymentMethod: string;
+  totalPriceHT: string;
+  totalPriceTTC: string;
+  accountHT: string;
+  accountTTC: string;
+  accountPaidHT: string;
+  accountPaidTTC: string;
+  cautionHT: string;
+  cautionTTC: string;
+  cautionPaidHT: string;
+  cautionPaidTTC: string;
+};
+
+type ContractNumericField =
+  | "total_price_ht"
+  | "total_price_ttc"
+  | "account_ht"
+  | "account_ttc"
+  | "account_paid_ht"
+  | "account_paid_ttc"
+  | "caution_ht"
+  | "caution_ttc"
+  | "caution_paid_ht"
+  | "caution_paid_ttc";
+
 const defaultFormState: CustomerFormState = {
   firstname: "",
   lastname: "",
@@ -49,6 +87,65 @@ const defaultFormState: CustomerFormState = {
   city: "",
   address: "",
   postal_code: "",
+};
+
+const toNumericValue = (value?: string | number | null) => {
+  if (value === null || value === undefined) return NaN;
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : NaN;
+  }
+  const cleaned = value.replace(/\s+/g, "").replace(",", ".").trim();
+  if (!cleaned.length) return NaN;
+  const numeric = Number(cleaned);
+  return Number.isFinite(numeric) ? numeric : NaN;
+};
+
+const toFormNumber = (value?: string | number | null) => {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) return "";
+    return value.toString();
+  }
+  const trimmed = value.trim();
+  if (!trimmed.length) return "";
+  const numeric = Number(trimmed.replace(",", "."));
+  if (Number.isNaN(numeric)) return trimmed;
+  return numeric.toString();
+};
+
+const ensureIsoString = (value?: string | null) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString();
+};
+
+const buildContractEditFormState = (contract: ContractFullView): ContractEditFormState => {
+  const baseStatus = contract.deleted_at ? "DISABLED" : (contract.status ?? "DRAFT").toUpperCase();
+  return {
+    status: baseStatus,
+    startDate: ensureIsoString(contract.start_datetime),
+    endDate: ensureIsoString(contract.end_datetime),
+    depositPaymentMethod: (contract.deposit_payment_method ?? "").toLowerCase(),
+    totalPriceHT: toFormNumber(contract.total_price_ht),
+    totalPriceTTC: toFormNumber(contract.total_price_ttc),
+    accountHT: toFormNumber(contract.account_ht),
+    accountTTC: toFormNumber(contract.account_ttc),
+    accountPaidHT: toFormNumber(contract.account_paid_ht),
+    accountPaidTTC: toFormNumber(contract.account_paid_ttc),
+    cautionHT: toFormNumber(contract.caution_ht ?? contract.total_price_ht),
+    cautionTTC: toFormNumber(contract.caution_ttc ?? contract.total_price_ttc),
+    cautionPaidHT: toFormNumber(contract.caution_paid_ht),
+    cautionPaidTTC: toFormNumber(contract.caution_paid_ttc),
+  };
+};
+
+const parseMoneyField = (value: string) => {
+  const cleaned = value.replace(/\s+/g, "").trim().replace(",", ".");
+  if (!cleaned.length) return undefined;
+  const numeric = Number(cleaned);
+  if (Number.isNaN(numeric)) return undefined;
+  return Math.round(numeric * 100) / 100;
 };
 
 const TooltipWrapper = ({ title, children }: { title: string; children: React.ReactNode }) => (
@@ -88,11 +185,54 @@ const statusConfig: Record<
     label: string;
   }
 > = {
+  draft: { color: "primary", label: "Brouillon" },
   pending: { color: "warning", label: "En attente" },
+  pending_signature: { color: "warning", label: "En attente de signature" },
   confirmed: { color: "success", label: "Confirmé" },
-  cancelled: { color: "error", label: "Annulé" },
+  signed: { color: "success", label: "Signé" },
+  signed_electronically: { color: "success", label: "Signé électroniquement" },
   completed: { color: "info", label: "Terminé" },
   disabled: { color: "warning", label: "Désactivé" },
+  cancelled: { color: "error", label: "Annulé" },
+};
+
+const resolveStatusMeta = (status?: string | null, deletedAt?: string | null) => {
+  if (deletedAt) {
+    return statusConfig.disabled;
+  }
+  const normalized = (status ?? "").toLowerCase();
+  return statusConfig[normalized] ?? {
+    color: "info" as const,
+    label: status ?? "N/A",
+  };
+};
+
+const formatPaymentMethod = (value?: string | null) => {
+  const normalized = (value ?? "").toLowerCase();
+  switch (normalized) {
+    case "card":
+    case "credit_card":
+    case "carte":
+      return "Carte bancaire";
+    case "cash":
+    case "espece":
+    case "espèces":
+      return "Espèces";
+    case "transfer":
+    case "virement":
+      return "Virement";
+    case "":
+      return "-";
+    default:
+      return value ?? "-";
+  }
+};
+
+const buildSignLinkUrl = (token: string | undefined | null) => {
+  if (!token) return null;
+  const defaultBase = typeof window !== "undefined" ? `${window.location.origin}/sign` : "/sign";
+  const base = (import.meta.env.VITE_CONTRACT_SIGNATURE_URL as string | undefined) ?? defaultBase;
+  return `${base.replace(/\/$/, "")}/${token}`;
 };
 
 const ContractCard = ({
@@ -104,6 +244,8 @@ const ContractCard = ({
   canManage,
   canSoftDelete,
   softDeletingId,
+  signatureLoadingId,
+  pdfGeneratingId,
 }: {
   contract: ContractFullView;
   onGenerate: (contract: ContractFullView) => void;
@@ -113,11 +255,26 @@ const ContractCard = ({
   canManage: boolean;
   canSoftDelete: boolean;
   softDeletingId: string | null;
+  signatureLoadingId: string | null;
+  pdfGeneratingId: string | null;
 }) => {
-  const config = statusConfig[(contract.status || "").toLowerCase()] ?? {
-    color: "info" as const,
-    label: contract.status ?? "N/A",
-  };
+  const config = resolveStatusMeta(contract.status, contract.deleted_at);
+  const isDisabled = Boolean(contract.deleted_at);
+
+  const signLinkUrl = buildSignLinkUrl(contract.sign_link?.token);
+  const dresses = (contract.dresses ?? [])
+    .map((dress) => dress?.dress ?? dress)
+    .filter((dress): dress is NonNullable<typeof dress> => Boolean(dress));
+  const addons = ((contract.addons && contract.addons.length > 0
+    ? contract.addons
+    : contract.addon_links?.map((link) => link.addon).filter((addon): addon is NonNullable<typeof addon> => Boolean(addon))) ?? []) as Array<{
+    id?: string;
+    name?: string;
+    price_ttc?: string | number | null;
+    price_ht?: string | number | null;
+    included?: boolean;
+  }>;
+  const paymentLabel = formatPaymentMethod(contract.deposit_payment_method);
 
   return (
     <div className="space-y-6 rounded-2xl bg-white/80 p-6 shadow-theme-xs ring-1 ring-gray-200/70 backdrop-blur dark:bg-white/[0.05] dark:ring-white/10">
@@ -144,7 +301,7 @@ const ContractCard = ({
         <InfoCard label="Acompte payé TTC">{formatCurrency(contract.account_paid_ttc)}</InfoCard>
         <InfoCard label="Caution TTC">{formatCurrency(contract.caution_ttc)}</InfoCard>
         <InfoCard label="Caution payée TTC">{formatCurrency(contract.caution_paid_ttc)}</InfoCard>
-        <InfoCard label="Méthode de paiement">{contract.deposit_payment_method || "-"}</InfoCard>
+        <InfoCard label="Méthode de paiement">{paymentLabel}</InfoCard>
         <InfoCard label="Type de contrat">{contract.contract_type_name || "-"}</InfoCard>
         <InfoCard label="Forfait associé">
           {contract.package?.name
@@ -153,42 +310,50 @@ const ContractCard = ({
         </InfoCard>
         <InfoCard label="Statut interne">{config.label}</InfoCard>
         <InfoCard label="Lien de signature">
-          {contract.sign_link?.token ? (
-            <span className="break-all text-xs text-gray-600 dark:text-gray-300">
-              {contract.sign_link.token}
-              {contract.sign_link.expires_at ? ` (exp. ${formatDateTime(contract.sign_link.expires_at)})` : ""}
-            </span>
+          {signLinkUrl ? (
+            <a
+              href={signLinkUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="break-all text-xs text-brand-600 hover:underline dark:text-brand-400"
+            >
+              {signLinkUrl}
+              {contract.sign_link?.expires_at ? ` (exp. ${formatDateTime(contract.sign_link.expires_at)})` : ""}
+            </a>
           ) : (
             "-"
           )}
         </InfoCard>
       </div>
 
-      {contract.dresses && contract.dresses.length > 0 && (
+      {dresses.length > 0 && (
         <div className="space-y-3">
           <h5 className="text-sm font-semibold text-gray-800 dark:text-white/90">Robes incluses</h5>
           <ul className="grid gap-3 text-sm text-gray-700 dark:text-gray-200 md:grid-cols-2">
-            {contract.dresses.map((dress) => (
-              <li key={dress.id} className="rounded-xl bg-gray-50/70 p-3 dark:bg-white/10">
-                <p className="font-medium text-gray-900 dark:text-white">{dress.name}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Référence : {dress.reference || "-"}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Prix location : {formatCurrency(dress.price_ttc)} TTC
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Prix journée : {formatCurrency(dress.price_per_day_ttc)} TTC
-                </p>
-              </li>
-            ))}
+            {dresses.map((dress, index) => {
+              const key = dress.id ?? ("dress_id" in dress ? (dress as { dress_id?: string }).dress_id ?? `${contract.id}-dress-${index}` : `${contract.id}-dress-${index}`);
+              return (
+                <li key={key} className="rounded-xl bg-gray-50/70 p-3 dark:bg-white/10">
+                  <p className="font-medium text-gray-900 dark:text-white">{dress.name ?? "Robe"}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Référence : {dress.reference || "-"}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Prix vente : {formatCurrency(dress.price_ttc ?? dress.price_ht)} TTC
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Prix journée : {formatCurrency(dress.price_per_day_ttc ?? dress.price_per_day_ht)} TTC
+                  </p>
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}
 
-      {contract.addons && contract.addons.length > 0 && (
+      {addons.length > 0 && (
         <div className="space-y-3">
           <h5 className="text-sm font-semibold text-gray-800 dark:text-white/90">Options</h5>
           <ul className="grid gap-2 text-sm text-gray-700 dark:text-gray-200 md:grid-cols-2">
-            {contract.addons.map((addon) => (
+            {addons.map((addon) => (
               <li
                 key={addon.id}
                 className="flex items-center justify-between rounded-xl bg-gray-50/70 px-3 py-2 dark:bg-white/10"
@@ -208,17 +373,16 @@ const ContractCard = ({
         </div>
       )}
 
-      {contract.deposit_payment_method && (
-        <p className="text-xs text-gray-500 dark:text-gray-400">
-          Mode de paiement : {contract.deposit_payment_method}
-        </p>
-      )}
-
       <div className="flex flex-wrap gap-3 pt-2">
-        <Button size="sm" variant="outline" onClick={() => onGenerate(contract)}>
-          Générer contrat
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => onGenerate(contract)}
+          disabled={!canManage || pdfGeneratingId === contract.id || isDisabled}
+        >
+          {pdfGeneratingId === contract.id ? "Génération..." : "Générer le PDF"}
         </Button>
-        <Button size="sm" variant="outline" disabled={!canManage} onClick={() => onEdit(contract)}>
+        <Button size="sm" variant="outline" disabled={!canManage || isDisabled} onClick={() => onEdit(contract)}>
           Modifier contrat
         </Button>
         <Button
@@ -227,15 +391,21 @@ const ContractCard = ({
           disabled={!canSoftDelete || softDeletingId === contract.id}
           onClick={() => onSoftDelete(contract)}
         >
-          {softDeletingId === contract.id ? "Désactivation..." : "Désactiver contrat"}
+          {softDeletingId === contract.id
+            ? isDisabled
+              ? "Activation..."
+              : "Désactivation..."
+            : isDisabled
+            ? "Activer contrat"
+            : "Désactiver contrat"}
         </Button>
         <Button
           size="sm"
           variant="outline"
-          disabled={!contract.sign_link?.token}
+          disabled={!canManage || !signLinkUrl || signatureLoadingId === contract.id || isDisabled}
           onClick={() => onSignature(contract)}
         >
-          Signature électronique
+          {signatureLoadingId === contract.id ? "Envoi en cours..." : "Signature électronique"}
         </Button>
       </div>
     </div>
@@ -275,6 +445,12 @@ const toISODate = (value: string) => {
   return date.toISOString();
 };
 
+const toCustomerRow = (customer: Customer): CustomerRow => ({
+  ...customer,
+  fullName: [customer.firstname, customer.lastname].filter(Boolean).join(" ") || "-",
+  createdLabel: formatDateTime(customer.created_at),
+});
+
 export default function Customers() {
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -308,10 +484,26 @@ export default function Customers() {
   const [contractsLoading, setContractsLoading] = useState(false);
   const [contractsError, setContractsError] = useState<string | null>(null);
   const [softDeletingContractId, setSoftDeletingContractId] = useState<string | null>(null);
+  const [signatureGeneratingContractId, setSignatureGeneratingContractId] = useState<string | null>(null);
+  const [pdfGeneratingContractId, setPdfGeneratingContractId] = useState<string | null>(null);
+  const [contractEditDrawer, setContractEditDrawer] = useState<{
+    open: boolean;
+    contract: ContractFullView | null;
+  }>({ open: false, contract: null });
+  const [contractEditForm, setContractEditForm] = useState<ContractEditFormState | null>(null);
+  const [contractEditSubmitting, setContractEditSubmitting] = useState(false);
+  const [contractAddons, setContractAddons] = useState<ContractAddonOption[]>([]);
+  const [contractAddonsLoading, setContractAddonsLoading] = useState(false);
+  const [contractAddonsError, setContractAddonsError] = useState<string | null>(null);
+  const [contractEditAddonIds, setContractEditAddonIds] = useState<string[]>([]);
+  const contractEditDefaultsAppliedRef = useRef(false);
 
   const { notify } = useNotification();
   const { hasRole } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
   const canManage = hasRole("ADMIN") || hasRole("MANAGER") || hasRole("COLLABORATOR");
+  const canManageContracts = hasRole("ADMIN") || hasRole("MANAGER");
   const canSoftDelete = hasRole("ADMIN") || hasRole("MANAGER");
   const canHardDelete = hasRole("ADMIN");
   const createBirthdayId = "create-customer-birthday";
@@ -322,14 +514,112 @@ export default function Customers() {
     [customerData.total, customerData.limit, limit],
   );
 
-  const customers: CustomerRow[] = useMemo(
+  const contractStatusOptions = useMemo(
+    () => [
+      { value: "DRAFT", label: statusConfig.draft.label },
+      { value: "PENDING", label: statusConfig.pending.label },
+      { value: "PENDING_SIGNATURE", label: statusConfig.pending_signature.label },
+      { value: "CONFIRMED", label: statusConfig.confirmed.label },
+      { value: "SIGNED", label: statusConfig.signed.label },
+      { value: "SIGNED_ELECTRONICALLY", label: statusConfig.signed_electronically.label },
+      { value: "COMPLETED", label: statusConfig.completed.label },
+      { value: "DISABLED", label: statusConfig.disabled.label },
+      { value: "CANCELLED", label: statusConfig.cancelled.label },
+    ],
+    [],
+  );
+
+  const paymentMethodOptions = useMemo(
+    () => [
+      { value: "card", label: "Carte bancaire" },
+      { value: "cash", label: "Espèces" },
+      { value: "transfer", label: "Virement" },
+    ],
+    [],
+  );
+
+  const customers: CustomerRow[] = useMemo(() => customerData.data.map(toCustomerRow), [customerData.data]);
+
+  const contractEditDateRange = useMemo(() => {
+    if (!contractEditForm?.startDate || !contractEditForm?.endDate) return undefined;
+    const start = new Date(contractEditForm.startDate);
+    const end = new Date(contractEditForm.endDate);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return undefined;
+    return [start, end] as [Date, Date];
+  }, [contractEditForm?.startDate, contractEditForm?.endDate]);
+
+  const contractEditDurationDays = useMemo(() => {
+    if (!contractEditDateRange) return 0;
+    const [start, end] = contractEditDateRange;
+    const diff = end.getTime() - start.getTime();
+    if (diff <= 0) return 0;
+    return Math.ceil(diff / (1000 * 60 * 60 * 24));
+  }, [contractEditDateRange]);
+
+  const contractEditVatRatio = useMemo(() => {
+    const contract = contractEditDrawer.contract;
+    if (!contract) return DEFAULT_VAT_RATIO;
+    const pairs: Array<[string | number | null | undefined, string | number | null | undefined]> = [
+      [contract.total_price_ht, contract.total_price_ttc],
+      [contract.account_ht, contract.account_ttc],
+      [contract.account_paid_ht, contract.account_paid_ttc],
+      [contract.caution_ht, contract.caution_ttc],
+      [contract.caution_paid_ht, contract.caution_paid_ttc],
+    ];
+    for (const [ht, ttc] of pairs) {
+      const ttcNumeric = toNumericValue(ttc);
+      const htNumeric = toNumericValue(ht);
+      if (!Number.isNaN(ttcNumeric) && !Number.isNaN(htNumeric) && ttcNumeric > 0 && htNumeric > 0) {
+        const ratio = htNumeric / ttcNumeric;
+        if (ratio > 0 && ratio <= 1) {
+          return ratio;
+        }
+      }
+    }
+    return DEFAULT_VAT_RATIO;
+  }, [contractEditDrawer.contract]);
+
+  const contractEditStatusMeta = useMemo(() => {
+    if (!contractEditForm?.status) return null;
+    const isDisabled = contractEditForm.status === "DISABLED";
+    const deletedFlag = isDisabled ? contractEditDrawer.contract?.deleted_at ?? "__temp__" : null;
+    return resolveStatusMeta(contractEditForm.status, deletedFlag);
+  }, [contractEditForm?.status, contractEditDrawer.contract?.deleted_at]);
+
+  const contractEditDatePickerId = useMemo(
+    () => (contractEditDrawer.contract ? `contract-edit-dates-${contractEditDrawer.contract.id}` : "contract-edit-dates"),
+    [contractEditDrawer.contract],
+  );
+
+  const contractEditSelectedAddons = useMemo(
+    () => contractAddons.filter((addon) => contractEditAddonIds.includes(addon.id)),
+    [contractAddons, contractEditAddonIds],
+  );
+
+  const contractEditSelectedTotals = useMemo(
     () =>
-      customerData.data.map((customer) => ({
-        ...customer,
-        fullName: [customer.firstname, customer.lastname].filter(Boolean).join(" ") || "-",
-        createdLabel: formatDateTime(customer.created_at),
-      })),
-    [customerData.data],
+      contractEditSelectedAddons.reduce(
+        (acc, addon) => {
+          const ht = toNumericValue(addon.price_ht);
+          const ttc = toNumericValue(addon.price_ttc);
+          return {
+            ht: acc.ht + (Number.isNaN(ht) ? 0 : ht),
+            ttc: acc.ttc + (Number.isNaN(ttc) ? 0 : ttc),
+          };
+        },
+        { ht: 0, ttc: 0 },
+      ),
+    [contractEditSelectedAddons],
+  );
+
+  const computeHtFromTtc = useCallback(
+    (ttcValue: string) => {
+      const numeric = parseMoneyField(ttcValue);
+      if (numeric === undefined) return "";
+      const computed = Math.round(numeric * contractEditVatRatio * 100) / 100;
+      return computed.toFixed(2);
+    },
+    [contractEditVatRatio],
   );
 
   useEffect(() => {
@@ -339,6 +629,124 @@ export default function Customers() {
     }, 400);
     return () => clearTimeout(handler);
   }, [searchInput]);
+
+  useEffect(() => {
+    const handleOpenCreateCustomer = () => {
+      setCreateOpen(true);
+    };
+    window.addEventListener("open-create-customer", handleOpenCreateCustomer);
+    return () => {
+      window.removeEventListener("open-create-customer", handleOpenCreateCustomer);
+    };
+  }, []);
+
+  useEffect(() => {
+    const quickAction = (location.state as { quickAction?: string } | null)?.quickAction;
+    if (quickAction === "open-create-customer") {
+      setCreateOpen(true);
+      navigate(location.pathname, { replace: true, state: null });
+    }
+  }, [location, navigate]);
+
+    const openViewModal = useCallback(
+    async (customer: CustomerRow) => {
+      setViewOpen(true);
+      setViewCustomer(customer);
+      setViewLoading(true);
+      setContractsLoading(true);
+      setContractsError(null);
+      setViewContracts([]);
+      setSoftDeletingContractId(null);
+      try {
+        const [detail, contracts] = await Promise.all([
+          CustomersAPI.getById(customer.id),
+          ContractsAPI.listByCustomer(customer.id),
+        ]);
+        setViewCustomer(detail);
+        let contractsWithDetails = contracts;
+        if (contracts.some((c) => !(c.contract_type && c.contract_type.name))) {
+          contractsWithDetails = await Promise.all(
+            contracts.map(async (contract) => {
+              try {
+                const fullContract = await ContractsAPI.getById(contract.id);
+                return {
+                  ...contract,
+                  ...fullContract,
+                  contract_type: fullContract.contract_type ?? contract.contract_type ?? null,
+                  contract_type_name:
+                    fullContract.contract_type?.name ??
+                    contract.contract_type?.name ??
+                    contract.contract_type_name ??
+                    null,
+                };
+              } catch (error) {
+                console.error("❌ Détail contrat :", error);
+                return contract;
+              }
+            }),
+          );
+        }
+        setViewContracts(contractsWithDetails);
+      } catch (error) {
+        console.error("❌ Consultation client :", error);
+        notify("error", "Erreur", "Impossible de charger la fiche client.");
+        setContractsError("Impossible de récupérer les contrats.");
+      } finally {
+        setViewLoading(false);
+        setContractsLoading(false);
+      }
+    },
+    [notify],
+  );
+
+  useEffect(() => {
+    const handleOpenCustomerView = (event: Event) => {
+      const detail = (event as CustomEvent<{ customer?: Customer; customerId?: string }>).detail;
+      if (!detail) return;
+      if (detail.customer) {
+        void openViewModal(toCustomerRow(detail.customer));
+        return;
+      }
+      if (detail.customerId) {
+        (async () => {
+          try {
+            const fetched = await CustomersAPI.getById(detail.customerId as string);
+            await openViewModal(toCustomerRow(fetched));
+          } catch (error) {
+            console.error("Ouverture client rapide :", error);
+            notify("error", "Client", "Impossible d'afficher ce client.");
+          }
+        })();
+      }
+    };
+
+    window.addEventListener("open-customer-view", handleOpenCustomerView as EventListener);
+    return () => {
+      window.removeEventListener("open-customer-view", handleOpenCustomerView as EventListener);
+    };
+  }, [notify, openViewModal]);
+
+  useEffect(() => {
+    const quickSearch = (location.state as { quickSearch?: QuickSearchNavigationPayload } | null)?.quickSearch;
+    if (!quickSearch || quickSearch.entity !== "customer") return;
+
+    const loadCustomer = async () => {
+      try {
+        if (quickSearch.payload?.customer) {
+          await openViewModal(toCustomerRow(quickSearch.payload.customer));
+        } else {
+          const detail = await CustomersAPI.getById(quickSearch.entityId);
+          await openViewModal(toCustomerRow(detail));
+        }
+      } catch (error) {
+        console.error("Recherche rapide client :", error);
+        notify("error", "Client", "Impossible de charger la fiche client demandée.");
+      }
+    };
+
+    void loadCustomer();
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location, navigate, notify, openViewModal]);
 
   const fetchCustomers = useCallback(async () => {
     try {
@@ -362,6 +770,96 @@ export default function Customers() {
   useEffect(() => {
     fetchCustomers();
   }, [fetchCustomers]);
+
+  useEffect(() => {
+    if (contractAddons.length) return;
+    let cancelled = false;
+    setContractAddonsLoading(true);
+    (async () => {
+      try {
+        const addons = await ContractAddonsAPI.list();
+        if (!cancelled) {
+          setContractAddons(addons);
+          setContractAddonsError(null);
+        }
+      } catch (error) {
+        console.error("❌ Chargement options contrat :", error);
+        if (!cancelled) {
+          setContractAddonsError("Impossible de charger les options de contrat.");
+        }
+        notify("error", "Options contrat", "Impossible de charger les options de contrat.");
+      } finally {
+        if (!cancelled) {
+          setContractAddonsLoading(false);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [contractAddons.length, notify]);
+
+  useEffect(() => {
+    if (!contractEditDrawer.open || !contractEditDrawer.contract) return;
+    setContractEditForm(buildContractEditFormState(contractEditDrawer.contract));
+    contractEditDefaultsAppliedRef.current = false;
+  }, [contractEditDrawer.open, contractEditDrawer.contract]);
+
+  useEffect(() => {
+    if (!contractEditDrawer.open || contractEditDefaultsAppliedRef.current) return;
+    const contract = contractEditDrawer.contract;
+    if (!contract) {
+      setContractEditAddonIds([]);
+      contractEditDefaultsAppliedRef.current = true;
+      return;
+    }
+
+    const resolvedIds = new Set<string>();
+    if (Array.isArray(contract.addons)) {
+      contract.addons.forEach((addon) => {
+        if (addon?.id) resolvedIds.add(addon.id);
+      });
+    }
+    if (Array.isArray(contract.addon_links)) {
+      contract.addon_links.forEach((link) => {
+        if (link?.addon_id) resolvedIds.add(link.addon_id);
+        if (link?.addon?.id) resolvedIds.add(link.addon.id);
+      });
+    }
+
+    if (resolvedIds.size > 0) {
+      setContractEditAddonIds(Array.from(resolvedIds));
+      contractEditDefaultsAppliedRef.current = true;
+      return;
+    }
+
+    if (contractAddons.length) {
+      const defaults = contractAddons.filter((addon) => addon.included).map((addon) => addon.id);
+      setContractEditAddonIds(defaults);
+    } else {
+      setContractEditAddonIds([]);
+    }
+    contractEditDefaultsAppliedRef.current = true;
+  }, [contractEditDrawer.open, contractEditDrawer.contract, contractAddons]);
+
+  useEffect(() => {
+    if (!contractEditDrawer.open) {
+      setContractEditForm(null);
+      setContractEditSubmitting(false);
+      setContractEditAddonIds([]);
+      contractEditDefaultsAppliedRef.current = false;
+    }
+  }, [contractEditDrawer.open]);
+
+  useEffect(() => {
+    if (!viewOpen) {
+      setContractEditDrawer({ open: false, contract: null });
+      setContractEditForm(null);
+      setContractEditSubmitting(false);
+      setContractEditAddonIds([]);
+      contractEditDefaultsAppliedRef.current = false;
+    }
+  }, [viewOpen]);
 
   const openCreateModal = () => {
     if (!canManage) {
@@ -460,53 +958,7 @@ export default function Customers() {
     }
   };
 
-  const openViewModal = async (customer: CustomerRow) => {
-    setViewOpen(true);
-    setViewCustomer(customer);
-    setViewLoading(true);
-    setContractsLoading(true);
-    setContractsError(null);
-    setViewContracts([]);
-    setSoftDeletingContractId(null);
-    try {
-      const [detail, contracts] = await Promise.all([
-        CustomersAPI.getById(customer.id),
-        ContractsAPI.listByCustomer(customer.id),
-      ]);
-      setViewCustomer(detail);
-      let contractsWithDetails = contracts;
-      if (contracts.some((c) => !(c.contract_type && c.contract_type.name))) {
-        contractsWithDetails = await Promise.all(
-          contracts.map(async (contract) => {
-            try {
-              const fullContract = await ContractsAPI.getById(contract.id);
-              return {
-                ...contract,
-                ...fullContract,
-                contract_type: fullContract.contract_type ?? contract.contract_type ?? null,
-                contract_type_name:
-                  fullContract.contract_type?.name ??
-                  contract.contract_type?.name ??
-                  contract.contract_type_name ??
-                  null,
-              };
-            } catch (error) {
-              console.error("❌ Détail contrat :", error);
-              return contract;
-            }
-          }),
-        );
-      }
-      setViewContracts(contractsWithDetails);
-    } catch (error) {
-      console.error("❌ Consultation client :", error);
-      notify("error", "Erreur", "Impossible de charger la fiche client.");
-      setContractsError("Impossible de récupérer les contrats.");
-    } finally {
-      setViewLoading(false);
-      setContractsLoading(false);
-    }
-  };
+
 
   const closeViewModal = () => {
     if (viewLoading) return;
@@ -517,24 +969,68 @@ export default function Customers() {
     setSoftDeletingContractId(null);
   };
 
-  const handleGenerateContract = (contract: ContractFullView) => {
-    notify(
-      "info",
-      "Génération",
-      `La génération du contrat ${contract.contract_number} sera disponible prochainement.`,
-    );
-  };
-
-  const handleEditContract = (contract: ContractFullView) => {
-    if (!canManage) {
+  const handleGenerateContract = async (contract: ContractFullView) => {
+    if (!canManageContracts) {
       notify("warning", "Action non autorisée", "Vous n'avez pas les droits suffisants.");
       return;
     }
-    notify(
-      "info",
-      "Modification",
-      `La modification du contrat ${contract.contract_number} sera disponible prochainement.`,
-    );
+    setPdfGeneratingContractId(contract.id);
+    try {
+      const res = await ContractsAPI.generatePdf(contract.id);
+      if (res?.link) {
+        window.open(res.link, "_blank", "noopener,noreferrer");
+      }
+      notify("success", "Contrat généré", "Le contrat a été généré en PDF.");
+    } catch (error) {
+      console.error("❌ Génération contrat :", error);
+      notify("error", "Erreur", "La génération du contrat a échoué.");
+    } finally {
+      setPdfGeneratingContractId(null);
+    }
+  };
+
+  const handleSignature = async (contract: ContractFullView) => {
+    if (!canManageContracts) {
+      notify("warning", "Action non autorisée", "Vous n'avez pas les droits suffisants.");
+      return;
+    }
+    setSignatureGeneratingContractId(contract.id);
+    try {
+      const { sign_link, emailSentTo } = await ContractsAPI.generateSignature(contract.id);
+      setViewContracts((prev) =>
+        prev.map((item) =>
+          item.id === contract.id
+            ? {
+                ...item,
+                sign_link,
+                status: "PENDING_SIGNATURE",
+              }
+            : item,
+        ),
+      );
+      notify(
+        "success",
+        "Signature électronique",
+        emailSentTo
+          ? `Le lien de signature a été envoyé à ${emailSentTo}.`
+          : "Le lien de signature a été généré.",
+      );
+    } catch (error) {
+      console.error("❌ Génération signature :", error);
+      notify("error", "Erreur", "Impossible de générer le lien de signature.");
+    } finally {
+      setSignatureGeneratingContractId(null);
+    }
+  };
+
+  const handleEditContract = (contract: ContractFullView) => {
+    if (!canManageContracts) {
+      notify("warning", "Action non autorisée", "Vous n'avez pas les droits suffisants.");
+      return;
+    }
+    setContractEditDrawer({ open: true, contract });
+    setContractEditForm(buildContractEditFormState(contract));
+    setContractEditSubmitting(false);
   };
 
   const handleSoftDeleteContract = async (contract: ContractFullView) => {
@@ -544,31 +1040,194 @@ export default function Customers() {
     }
     setSoftDeletingContractId(contract.id);
     try {
-      await ContractsAPI.softDelete(contract.id);
-      notify("success", "Contrat désactivé", `Le contrat ${contract.contract_number} a été désactivé.`);
+      const isDisabled = Boolean(contract.deleted_at);
+      if (isDisabled) {
+        await ContractsAPI.restore(contract.id);
+        notify("success", "Contrat activé", `Le contrat ${contract.contract_number} a été réactivé.`);
+      } else {
+        await ContractsAPI.softDelete(contract.id);
+        notify("success", "Contrat désactivé", `Le contrat ${contract.contract_number} a été désactivé.`);
+      }
+      const refreshed = await ContractsAPI.getById(contract.id);
       setViewContracts((prev) =>
-        prev.map((item) => (item.id === contract.id ? { ...item, status: "DISABLED" } : item)),
+        prev.map((item) => (item.id === refreshed.id ? { ...item, ...refreshed } : item)),
       );
+      setContractEditDrawer((prev) =>
+        prev.open && prev.contract?.id === refreshed.id ? { ...prev, contract: refreshed } : prev,
+      );
+      if (contractEditDrawer.open && contractEditDrawer.contract?.id === refreshed.id) {
+        setContractEditForm(buildContractEditFormState(refreshed));
+      }
+      window.dispatchEvent(new CustomEvent("contract-updated", { detail: refreshed }));
     } catch (error) {
       console.error("❌ Désactivation contrat :", error);
-      notify("error", "Erreur", "Impossible de désactiver le contrat.");
+      notify("error", "Erreur", "Impossible de modifier l'état du contrat.");
     } finally {
       setSoftDeletingContractId(null);
     }
   };
 
-  const handleSignature = (contract: ContractFullView) => {
-    if (!contract.sign_link?.token) {
-      notify("info", "Signature", "Aucun lien de signature disponible pour ce contrat.");
+  const closeContractEditDrawer = () => {
+    if (contractEditSubmitting) return;
+    setContractEditDrawer({ open: false, contract: null });
+    setContractEditAddonIds([]);
+  };
+
+  const handleContractEditFieldChange =
+    (field: keyof ContractEditFormState) =>
+    (value: string) => {
+      setContractEditForm((prev) => (prev ? { ...prev, [field]: value } : prev));
+    };
+
+  const handleContractEditInputChange =
+    (field: keyof ContractEditFormState) =>
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const { value } = event.target;
+      setContractEditForm((prev) => {
+        if (!prev) return prev;
+        const next = { ...prev, [field]: value };
+        switch (field) {
+          case "totalPriceTTC":
+            next.totalPriceHT = computeHtFromTtc(value);
+            break;
+          case "accountTTC":
+            next.accountHT = computeHtFromTtc(value);
+            break;
+          case "accountPaidTTC":
+            next.accountPaidHT = computeHtFromTtc(value);
+            break;
+          case "cautionTTC":
+            next.cautionHT = computeHtFromTtc(value);
+            break;
+          case "cautionPaidTTC":
+            next.cautionPaidHT = computeHtFromTtc(value);
+            break;
+          default:
+            break;
+        }
+        return next;
+      });
+    };
+
+  const handleContractEditAddonToggle = useCallback((addonId: string, checked: boolean) => {
+    setContractEditAddonIds((prev) => {
+      if (checked) {
+        if (prev.includes(addonId)) return prev;
+        return [...prev, addonId];
+      }
+      return prev.filter((id) => id !== addonId);
+    });
+  }, []);
+
+  const handleContractEditDateChange = useCallback((selectedDates: Date[]) => {
+    if (!selectedDates.length) return;
+    const startRaw = selectedDates[0];
+    if (!startRaw || Number.isNaN(startRaw.getTime())) return;
+
+    const start = new Date(startRaw.getTime());
+    const endRaw = selectedDates[1] ?? start;
+    let end = new Date(endRaw.getTime());
+
+    if (selectedDates.length === 1) {
+      end = new Date(start.getTime());
+      end.setDate(end.getDate() + 1);
+    }
+
+    if (end <= start) {
+      end = new Date(start.getTime());
+      end.setDate(end.getDate() + 1);
+    }
+
+    setContractEditForm((prev) =>
+      prev
+        ? {
+            ...prev,
+            startDate: start.toISOString(),
+            endDate: end.toISOString(),
+          }
+        : prev,
+    );
+  }, []);
+
+  const handleContractEditSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!contractEditDrawer.contract || !contractEditForm) return;
+
+    if (!contractEditForm.startDate || !contractEditForm.endDate) {
+      notify("warning", "Contrat", "Sélectionnez une période de location.");
       return;
     }
-    notify(
-      "success",
-      "Signature électronique",
-      "Le lien de signature a été copié dans le presse-papiers.",
-    );
-    void navigator.clipboard?.writeText(contract.sign_link.token).catch(() => undefined);
+
+    const start = new Date(contractEditForm.startDate);
+    const end = new Date(contractEditForm.endDate);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
+      notify("warning", "Contrat", "Les dates de location sont invalides.");
+      return;
+    }
+
+    const original = contractEditDrawer.contract;
+
+    const payload: ContractUpdatePayload = {
+      start_datetime: start.toISOString(),
+      end_datetime: end.toISOString(),
+    };
+
+    if (contractEditForm.status) {
+      payload.status = contractEditForm.status.toUpperCase();
+    }
+
+    payload.deposit_payment_method = contractEditForm.depositPaymentMethod?.trim()
+      ? contractEditForm.depositPaymentMethod
+      : null;
+
+    const setNumericField = (field: ContractNumericField, raw: string) => {
+      const numeric = parseMoneyField(raw);
+      if (numeric !== undefined) {
+        payload[field] = numeric;
+      }
+    };
+
+    setNumericField("total_price_ht", contractEditForm.totalPriceHT);
+    setNumericField("total_price_ttc", contractEditForm.totalPriceTTC);
+    setNumericField("account_ht", contractEditForm.accountHT);
+    setNumericField("account_ttc", contractEditForm.accountTTC);
+    setNumericField("account_paid_ht", contractEditForm.accountPaidHT);
+    setNumericField("account_paid_ttc", contractEditForm.accountPaidTTC);
+    setNumericField("caution_ht", contractEditForm.cautionHT);
+    setNumericField("caution_ttc", contractEditForm.cautionTTC);
+    setNumericField("caution_paid_ht", contractEditForm.cautionPaidHT);
+    setNumericField("caution_paid_ttc", contractEditForm.cautionPaidTTC);
+
+    payload.addons = contractEditAddonIds.map((id) => ({ addon_id: id }));
+
+    const wantsDisabled = payload.status === "DISABLED";
+    const wasDisabled = (original.status ?? "").toUpperCase() === "DISABLED" || Boolean(original.deleted_at);
+    if (wasDisabled && !wantsDisabled) {
+      payload.deleted_at = null;
+      payload.deleted_by = null;
+    }
+    if (wantsDisabled) {
+      payload.deleted_at = payload.deleted_at ?? original.deleted_at ?? new Date().toISOString();
+      payload.deleted_by = original.deleted_by ?? null;
+    }
+
+    setContractEditSubmitting(true);
+    try {
+      const updated = await ContractsAPI.update(contractEditDrawer.contract.id, payload);
+      setViewContracts((prev) =>
+        prev.map((item) => (item.id === updated.id ? { ...item, ...updated } : item)),
+      );
+      window.dispatchEvent(new CustomEvent("contract-updated", { detail: updated }));
+      setContractEditDrawer({ open: false, contract: updated });
+      notify("success", "Contrat mis à jour", `Le contrat ${updated.contract_number} a été mis à jour.`);
+    } catch (error) {
+      console.error("❌ Mise à jour contrat :", error);
+      notify("error", "Erreur", "Impossible de mettre à jour le contrat.");
+    } finally {
+      setContractEditSubmitting(false);
+    }
   };
+
 
   const handleCreate = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -749,12 +1408,6 @@ export default function Customers() {
                       isHeader
                       className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400"
                     >
-                      Créé le
-                    </TableCell>
-                    <TableCell
-                      isHeader
-                      className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400"
-                    >
                       Statut
                     </TableCell>
                     <TableCell
@@ -780,9 +1433,6 @@ export default function Customers() {
                       <TableCell className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
                         {[customer.city, customer.country].filter(Boolean).join(", ") || "-"}
                       </TableCell>
-                      <TableCell className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
-                        {customer.createdLabel}
-                      </TableCell>
                     <TableCell className="px-4 py-3">
                       <Badge variant="light" color={customer.deleted_at ? "warning" : "success"} size="sm">
                         {customer.deleted_at ? "Désactivé" : "Actif"}
@@ -790,13 +1440,13 @@ export default function Customers() {
                     </TableCell>
                     <TableCell className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <TooltipWrapper title="Voir">
+                        <TooltipWrapper title="Voir la fiche client">
                           <button
                             type="button"
                             onClick={() => openViewModal(customer)}
                             className="inline-flex size-9 items-center justify-center rounded-lg border border-gray-300 text-gray-600 transition hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/10"
                           >
-                            <EyeIcon className="size-4" />
+                            <IoEyeOutline className="size-4" />
                             <span className="sr-only">Voir</span>
                           </button>
                         </TooltipWrapper>
@@ -996,14 +1646,325 @@ export default function Customers() {
                       onEdit={handleEditContract}
                       onSoftDelete={handleSoftDeleteContract}
                       onSignature={handleSignature}
-                      canManage={canManage}
+                      canManage={canManageContracts}
                       canSoftDelete={canSoftDelete}
                       softDeletingId={softDeletingContractId}
+                      signatureLoadingId={signatureGeneratingContractId}
+                      pdfGeneratingId={pdfGeneratingContractId}
                     />
                   ))}
                 </div>
               )}
             </div>
+          </div>
+        )}
+      </RightDrawer>
+
+      <RightDrawer
+        isOpen={contractEditDrawer.open}
+        onClose={closeContractEditDrawer}
+        title={
+          contractEditDrawer.contract
+            ? `Modifier ${contractEditDrawer.contract.contract_number}`
+            : "Modifier le contrat"
+        }
+        description={
+          contractEditDrawer.contract
+            ? `${contractEditDrawer.contract.customer_firstname ?? ""} ${
+                contractEditDrawer.contract.customer_lastname ?? ""
+              }`.trim() || contractEditDrawer.contract.customer_email
+            : undefined
+        }
+        widthClassName="w-full max-w-3xl"
+      >
+        {contractEditForm ? (
+          <form className="space-y-8" onSubmit={handleContractEditSubmit}>
+            <section className="space-y-5 rounded-2xl border border-gray-200 bg-white/80 p-6 shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.02]">
+              <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    Contrat
+                  </p>
+                  <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                    {contractEditDrawer.contract?.contract_number ?? "-"}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    {contractEditDrawer.contract?.contract_type_name ?? "Contrat de location"}
+                  </p>
+                </div>
+                {contractEditStatusMeta ? (
+                  <Badge variant="light" color={contractEditStatusMeta.color} size="sm">
+                    {contractEditStatusMeta.label}
+                  </Badge>
+                ) : null}
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <Label>Statut</Label>
+                  <Select
+                    options={contractStatusOptions}
+                    value={contractEditForm.status}
+                    onChange={(value) => handleContractEditFieldChange("status")(value.toUpperCase())}
+                    placeholder="Sélectionner un statut"
+                  />
+                </div>
+                <div>
+                  <Label>Méthode de paiement</Label>
+                  <Select
+                    options={paymentMethodOptions}
+                    value={contractEditForm.depositPaymentMethod}
+                    onChange={(value) => handleContractEditFieldChange("depositPaymentMethod")(value)}
+                    emptyOptionLabel="Méthode non renseignée"
+                    placeholder="Méthode de paiement"
+                  />
+                </div>
+              </div>
+            </section>
+
+            <section className="space-y-5 rounded-2xl border border-gray-200 bg-white/80 p-6 shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.02]">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Période de location</h3>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="flex flex-col gap-2">
+                  <DatePicker
+                    id={contractEditDatePickerId}
+                    mode="range"
+                    defaultDate={contractEditDateRange}
+                    placeholder="Sélectionnez une période"
+                    onChange={handleContractEditDateChange}
+                    options={{
+                      enableTime: true,
+                      time_24hr: true,
+                      minuteIncrement: 15,
+                      dateFormat: "d/m/Y H:i",
+                    }}
+                  />
+                </div>
+                <div className="rounded-xl border border-gray-200 bg-gray-50/70 p-4 text-sm text-gray-700 dark:border-gray-700 dark:bg-white/[0.02] dark:text-gray-200">
+                  {contractEditDateRange ? (
+                    <>
+                      <p className="font-medium">
+                        {contractEditDateRange[0].toLocaleString("fr-FR", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}{" "}
+                        →{" "}
+                        {contractEditDateRange[1].toLocaleString("fr-FR", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </p>
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        {contractEditDurationDays > 0
+                          ? `${contractEditDurationDays} jour${contractEditDurationDays > 1 ? "s" : ""} de location`
+                          : "Durée non déterminée"}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Sélectionnez une période pour afficher le récapitulatif.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </section>
+
+            <section className="space-y-5 rounded-2xl border border-gray-200 bg-white/80 p-6 shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.02]">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Options</h3>
+                {contractAddonsLoading ? (
+                  <span className="text-xs text-gray-500 dark:text-gray-400">Chargement…</span>
+                ) : null}
+              </div>
+              {contractAddonsError ? (
+                <div className="rounded-lg border border-error-100 bg-error-50 px-4 py-3 text-xs text-error-600 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300">
+                  {contractAddonsError}
+                </div>
+              ) : null}
+              {contractAddons.length ? (
+                <div className="space-y-3">
+                  {contractAddons.map((addon) => {
+                    const isSelected = contractEditAddonIds.includes(addon.id);
+                    return (
+                      <div
+                        key={addon.id}
+                        className="flex items-center justify-between rounded-lg border border-gray-200 bg-white/70 px-4 py-3 dark:border-gray-700 dark:bg-white/[0.05]"
+                      >
+                        <Checkbox
+                          checked={isSelected}
+                          onChange={(checked) => handleContractEditAddonToggle(addon.id, checked)}
+                          label={addon.name}
+                        />
+                        <div className="text-right text-xs text-gray-500 dark:text-gray-400">
+                          <p>
+                            {formatCurrency(addon.price_ttc)} TTC • {formatCurrency(addon.price_ht)} HT
+                          </p>
+                          {addon.included ? (
+                            <p className="mt-1 font-medium text-success-600 dark:text-success-400">Inclus</p>
+                          ) : null}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : !contractAddonsLoading ? (
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Aucune option de contrat n'est disponible pour le moment.
+                </p>
+              ) : null}
+              <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-600 dark:border-gray-700 dark:bg-white/[0.03] dark:text-gray-300">
+                {contractEditSelectedAddons.length ? (
+                  <>
+                    <p className="font-medium text-gray-700 dark:text-gray-200">
+                      {contractEditSelectedAddons.length} option
+                      {contractEditSelectedAddons.length > 1 ? "s" : ""} sélectionnée
+                      {contractEditSelectedAddons.length > 1 ? "s" : ""}
+                    </p>
+                    <p className="mt-1">
+                      Total : {formatCurrency(contractEditSelectedTotals.ttc)} TTC •{" "}
+                      {formatCurrency(contractEditSelectedTotals.ht)} HT
+                    </p>
+                  </>
+                ) : (
+                  <p>Aucune option sélectionnée.</p>
+                )}
+              </div>
+            </section>
+
+            <section className="space-y-5 rounded-2xl border border-gray-200 bg-white/80 p-6 shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.02]">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Montants</h3>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <Label>Prix total TTC</Label>
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    step="0.01"
+                    min="0"
+                    value={contractEditForm.totalPriceTTC}
+                    onChange={handleContractEditInputChange("totalPriceTTC")}
+                  />
+                </div>
+                <div>
+                  <Label>Prix total HT</Label>
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    step="0.01"
+                    min="0"
+                    value={contractEditForm.totalPriceHT}
+                    readOnly
+                  />
+                </div>
+                <div>
+                  <Label>Acompte TTC</Label>
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    step="0.01"
+                    min="0"
+                    value={contractEditForm.accountTTC}
+                    onChange={handleContractEditInputChange("accountTTC")}
+                  />
+                </div>
+                <div>
+                  <Label>Acompte HT</Label>
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    step="0.01"
+                    min="0"
+                    value={contractEditForm.accountHT}
+                    readOnly
+                  />
+                </div>
+                <div>
+                  <Label>Acompte payé TTC</Label>
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    step="0.01"
+                    min="0"
+                    value={contractEditForm.accountPaidTTC}
+                    onChange={handleContractEditInputChange("accountPaidTTC")}
+                  />
+                </div>
+                <div>
+                  <Label>Acompte payé HT</Label>
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    step="0.01"
+                    min="0"
+                    value={contractEditForm.accountPaidHT}
+                    readOnly
+                  />
+                </div>
+                <div>
+                  <Label>Caution TTC</Label>
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    step="0.01"
+                    min="0"
+                    value={contractEditForm.cautionTTC}
+                    onChange={handleContractEditInputChange("cautionTTC")}
+                  />
+                </div>
+                <div>
+                  <Label>Caution HT</Label>
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    step="0.01"
+                    min="0"
+                    value={contractEditForm.cautionHT}
+                    readOnly
+                  />
+                </div>
+                <div>
+                  <Label>Caution payée TTC</Label>
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    step="0.01"
+                    min="0"
+                    value={contractEditForm.cautionPaidTTC}
+                    onChange={handleContractEditInputChange("cautionPaidTTC")}
+                  />
+                </div>
+                <div>
+                  <Label>Caution payée HT</Label>
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    step="0.01"
+                    min="0"
+                    value={contractEditForm.cautionPaidHT}
+                    readOnly
+                  />
+                </div>
+              </div>
+            </section>
+
+            <div className="flex justify-end gap-3 border-t border-gray-200 pt-4 dark:border-gray-800">
+              <Button type="button" variant="outline" onClick={closeContractEditDrawer} disabled={contractEditSubmitting}>
+                Annuler
+              </Button>
+              <Button type="submit" disabled={contractEditSubmitting}>
+                {contractEditSubmitting ? "Enregistrement..." : "Enregistrer"}
+              </Button>
+            </div>
+          </form>
+        ) : (
+          <div className="flex justify-center py-12">
+            <SpinnerOne />
           </div>
         )}
       </RightDrawer>

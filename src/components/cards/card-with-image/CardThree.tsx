@@ -63,7 +63,7 @@ export default function CardThree({
   badges,
   footer,
   children,
-  autoPlayCarousel = true,
+  autoPlayCarousel = false,
   imageClassName = "w-full h-60 object-cover",
   bodyClassName = "",
   overlayBadges,
@@ -74,17 +74,17 @@ export default function CardThree({
 
   return (
     <Card>
-      <div className="-mx-5 -mt-5 mb-5 overflow-hidden sm:-mx-6 sm:-mt-6">
-        <div className="relative">
+      <div className="-mx-5 -mt-5 mb-5 sm:-mx-6 sm:-mt-6">
+        <div className="relative overflow-hidden rounded-t-xl">
           <WithIndicators
             images={images}
             fallbackImage={fallbackImage}
             autoPlay={autoPlayCarousel}
             imageClassName={clsx(imageClassName, "rounded-none")}
-            className="rounded-t-xl overflow-hidden"
+            className="h-full w-full"
           />
           {overlayBadges ? (
-            <div className="pointer-events-none absolute right-4 top-4 flex flex-col items-end gap-2">
+            <div className="pointer-events-none absolute right-4 top-4 z-10 flex flex-wrap items-center justify-end gap-2">
               {overlayBadges}
             </div>
           ) : null}

@@ -8,16 +8,19 @@ interface InputProps {
   placeholder?: string;
   value?: string | number;
   onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   className?: string;
   min?: string;
   max?: string;
   step?: number | string;
   maxLength?: number;
   disabled?: boolean;
+  readOnly?: boolean;
   success?: boolean;
   error?: boolean;
   hint?: string;
   required?: boolean;
+  inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
 }
 
 const Input: FC<InputProps> = ({
@@ -27,21 +30,26 @@ const Input: FC<InputProps> = ({
   placeholder,
   value,
   onChange,
+  onKeyDown,
   className = "",
   min,
   max,
   step,
   maxLength,
   disabled = false,
+  readOnly = false,
   success = false,
   error = false,
   hint,
   required = false,
+  inputMode,
 }) => {
   let inputClasses = ` h-11 w-full rounded-lg border appearance-none px-4 py-2.5 text-sm shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3  dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 ${className}`;
 
   if (disabled) {
     inputClasses += ` text-gray-500 border-gray-300 opacity-40 bg-gray-100 cursor-not-allowed dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700 opacity-40`;
+  } else if (readOnly) {
+    inputClasses += ` bg-gray-50 text-gray-700 border-gray-200 cursor-default focus:border-gray-300 focus:ring-0 dark:bg-gray-800/60 dark:text-gray-300 dark:border-gray-700`;
   } else if (error) {
     inputClasses += `  border-error-500 focus:border-error-300 focus:ring-error-500/20 dark:text-error-400 dark:border-error-500 dark:focus:border-error-800`;
   } else if (success) {
@@ -59,12 +67,15 @@ const Input: FC<InputProps> = ({
         placeholder={placeholder}
         value={value}
         onChange={onChange}
+        onKeyDown={onKeyDown}
         min={min}
         max={max}
         step={step}
         maxLength={maxLength}
         disabled={disabled}
+        readOnly={readOnly}
         required={required}
+        inputMode={inputMode}
         className={inputClasses}
       />
 

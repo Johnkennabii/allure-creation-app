@@ -18,7 +18,7 @@ const DEFAULT_FALLBACK = "/images/cards/card-03.png";
 export default function WithIndicators({
   images,
   fallbackImage = DEFAULT_FALLBACK,
-  autoPlay = true,
+  autoPlay = false,
   className = "rounded-t-xl overflow-hidden bg-gray-900/5 dark:bg-white/[0.03]",
   imageClassName = "w-full h-60 object-cover",
 }: WithIndicatorsProps) {

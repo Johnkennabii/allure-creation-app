@@ -25,6 +25,7 @@ import DressConditions from "./pages/Gestion/DressConditions";
 import DressColors from "./pages/Gestion/DressColors";
 import Customers from "./pages/Customers/Customers";
 import Catalogue from "./pages/Catalogue/Catalogue";
+import ContractSignPage from "./pages/Public/ContractSignPage";
 
 export default function App() {
   return (
@@ -36,6 +37,8 @@ export default function App() {
         <Route path="/signup" element={<SignUp />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/two-step-verification" element={<TwoStepVerification />} />
+
+        <Route path="/sign/:token" element={<ContractSignPage />} />
 
         {/* --- Dashboard Protected Layout --- */}
         <Route element={<AppLayout />}>

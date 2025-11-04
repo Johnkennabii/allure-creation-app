@@ -101,6 +101,17 @@ export type DressUpdatePayload = {
   images: string[];
 };
 
+type DressDetailsListParams = {
+  page?: number;
+  limit?: number;
+  types?: string | string[];
+  sizes?: string | string[];
+  colors?: string | string[];
+  priceMin?: number;
+  priceMax?: number;
+  search?: string;
+};
+
 const sanitizeImages = (value: unknown): string[] => {
   if (!Array.isArray(value)) return [];
   return value
@@ -204,11 +215,35 @@ export const DressesAPI = {
     return normalizeListResponse(res, params.limit);
   },
 
-  async listDetails(page = 1, limit?: number): Promise<DressListResponse> {
-    const search = new URLSearchParams({ page: String(page) });
-    if (limit) search.set("limit", String(limit));
+  async listDetails(params: DressDetailsListParams = {}): Promise<DressListResponse> {
+    const search = new URLSearchParams();
+    const page = params.page ?? 1;
+    search.set("page", String(page));
+    if (typeof params.limit === "number") search.set("limit", String(params.limit));
+    if (params.search) search.set("search", params.search);
+
+    const appendListParam = (key: string, value?: string | string[]) => {
+      if (!value) return;
+      const values = Array.isArray(value) ? value : [value];
+      values
+        .map((item) => String(item).trim())
+        .filter((item) => item.length > 0)
+        .forEach((item) => search.append(key, item));
+    };
+
+    appendListParam("types", params.types);
+    appendListParam("sizes", params.sizes);
+    appendListParam("colors", params.colors);
+
+    if (typeof params.priceMin === "number") {
+      search.set("priceMin", String(params.priceMin));
+    }
+    if (typeof params.priceMax === "number") {
+      search.set("priceMax", String(params.priceMax));
+    }
+
     const res = await httpClient.get(`/dresses/details-view?${search.toString()}`);
-    return normalizeListResponse(res, limit);
+    return normalizeListResponse(res, params.limit);
   },
 
   async create(payload: DressUpdatePayload): Promise<DressDetails> {
