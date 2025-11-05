@@ -744,8 +744,13 @@ export default function Catalogue() {
       const totalTTC = baseTTC + defaultAddonTotals.chargeableTTC;
       const depositBaseHT = totalHT + defaultAddonTotals.includedHT;
       const depositBaseTTC = totalTTC + defaultAddonTotals.includedTTC;
-      const depositHT = depositBaseHT * 0.5;
-      const depositTTC = depositBaseTTC * 0.5;
+      // Pour forfait: Acompte TTC = Prix TTC (100% du total)
+      // Pour location journalière: Acompte TTC = 50% du total
+      const depositHT = mode === "package" ? totalHT : depositBaseHT * 0.5;
+      const depositTTC = mode === "package" ? totalTTC : depositBaseTTC * 0.5;
+      // Acompte payé TTC : minimum 50% de l'acompte pour forfait, égal à l'acompte pour journalier
+      const depositPaidHT = mode === "package" ? depositHT * 0.5 : depositHT;
+      const depositPaidTTC = mode === "package" ? depositTTC * 0.5 : depositTTC;
 
       setContractForm({
         contractNumber: generateContractNumber(),
@@ -760,8 +765,8 @@ export default function Catalogue() {
         totalPriceTTC: formatMoneyValue(totalTTC),
         depositHT: formatMoneyValue(depositHT),
         depositTTC: formatMoneyValue(depositTTC),
-        depositPaidHT: formatMoneyValue(depositHT),
-        depositPaidTTC: formatMoneyValue(depositTTC),
+        depositPaidHT: formatMoneyValue(depositPaidHT),
+        depositPaidTTC: formatMoneyValue(depositPaidTTC),
         cautionHT: formatMoneyValue(cautionHT),
         cautionTTC: formatMoneyValue(cautionTTC),
         cautionPaidHT: "0.00",
@@ -1165,8 +1170,15 @@ export default function Catalogue() {
     const totalTTC = baseTTC + addonsTotals.chargeableTTC;
     const depositBaseHT = totalHT + addonsTotals.includedHT;
     const depositBaseTTC = totalTTC + addonsTotals.includedTTC;
-    const depositHT = depositBaseHT * 0.5;
-    const depositTTC = depositBaseTTC * 0.5;
+    // Pour forfait: Acompte TTC = Prix TTC (100% du total)
+    // Pour location journalière: Acompte TTC = 50% du total
+    const depositHT = contractDrawer.mode === "package" ? totalHT : depositBaseHT * 0.5;
+    const depositTTC = contractDrawer.mode === "package" ? totalTTC : depositBaseTTC * 0.5;
+    // Maintenir l'acompte payé actuel ou définir 50% de l'acompte pour forfait
+    const currentDepositPaid = toNumeric(contractForm?.depositPaidTTC ?? "0");
+    const minDepositPaid = contractDrawer.mode === "package" ? depositTTC * 0.5 : depositTTC;
+    const depositPaidTTC = Math.max(currentDepositPaid, minDepositPaid);
+    const depositPaidHT = depositPaidTTC * (contractDrawer.mode === "package" ? packageVatRatio : vatRatio);
     const cautionHT = toNumeric(activeDress.price_ht ?? totalHT);
     const cautionTTC = toNumeric(activeDress.price_ttc ?? totalTTC);
 
@@ -1176,8 +1188,8 @@ export default function Catalogue() {
       totalPriceTTC: formatMoneyValue(totalTTC),
       depositHT: formatMoneyValue(depositHT),
       depositTTC: formatMoneyValue(depositTTC),
-      depositPaidHT: formatMoneyValue(depositHT),
-      depositPaidTTC: formatMoneyValue(depositTTC),
+      depositPaidHT: formatMoneyValue(depositPaidHT),
+      depositPaidTTC: formatMoneyValue(depositPaidTTC),
       cautionHT: formatMoneyValue(cautionHT),
       cautionTTC: formatMoneyValue(cautionTTC),
     };
@@ -1883,6 +1895,27 @@ export default function Catalogue() {
             ...prev,
             depositTTC: formattedTTC,
             depositHT: formattedHT,
+            depositPaidTTC: formattedTTC,
+            depositPaidHT: formattedHT,
+          }
+        : prev,
+    );
+  };
+
+  const handleDepositPaidTTCChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const value = event.target.value;
+    const numericRaw = parseNumber(value) ?? 0;
+    const depositTTC = parseNumber(contractForm?.depositTTC ?? "0") ?? 0;
+    const minimum = contractDrawer.mode === "package" ? Math.max(depositTTC * 0.5, 0) : 0;
+    const numeric = Math.max(numericRaw, minimum);
+    const ratio = contractDrawer.mode === "package" ? packageVatRatio : vatRatio;
+    const ht = numeric * ratio;
+    const formattedTTC = formatMoneyValue(numeric);
+    const formattedHT = formatMoneyValue(ht);
+    setContractForm((prev) =>
+      prev
+        ? {
+            ...prev,
             depositPaidTTC: formattedTTC,
             depositPaidHT: formattedHT,
           }
@@ -3288,21 +3321,6 @@ export default function Catalogue() {
                 </Badge>
               </div>
               <dl className="grid gap-4 md:grid-cols-2">
-                {contractDrawer.mode !== "package" && (
-                  <div>
-                    <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                      Période
-                    </dt>
-                    <dd className="mt-1 text-sm text-gray-800 dark:text-gray-200">
-                      {contractDateRange
-                        ? `${contractDateRange[0].toLocaleDateString("fr-FR", { dateStyle: "medium" })} → ${contractDateRange[1].toLocaleDateString("fr-FR", { dateStyle: "medium" })}`
-                        : "À définir"}
-                      {rentalDays
-                        ? ` • ${rentalDays} jour${rentalDays > 1 ? "s" : ""}`
-                        : ""}
-                    </dd>
-                  </div>
-                )}
                 <div>
                   <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                     Type de contrat
@@ -3311,8 +3329,50 @@ export default function Catalogue() {
                     {contractTypeLabel ?? "Non défini"}
                   </dd>
                 </div>
-                {contractDrawer.mode !== "package" && (
+                {contractDrawer.mode === "package" ? (
                   <>
+                    <div>
+                      <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                        Forfait
+                      </dt>
+                      <dd className="mt-1 text-sm text-gray-800 dark:text-gray-200">
+                        {selectedPackage ? selectedPackage.name : "Non sélectionné"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                        Période
+                      </dt>
+                      <dd className="mt-1 text-sm text-gray-800 dark:text-gray-200">
+                        {contractDateRange
+                          ? `${contractDateRange[0].toLocaleDateString("fr-FR", { dateStyle: "medium" })} → ${contractDateRange[1].toLocaleDateString("fr-FR", { dateStyle: "medium" })}`
+                          : "À définir"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                        Tarif du forfait TTC
+                      </dt>
+                      <dd className="mt-1 text-sm text-gray-800 dark:text-gray-200">
+                        {selectedPackage ? formatCurrency(selectedPackage.price_ttc) : "—"}
+                      </dd>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                        Période
+                      </dt>
+                      <dd className="mt-1 text-sm text-gray-800 dark:text-gray-200">
+                        {contractDateRange
+                          ? `${contractDateRange[0].toLocaleDateString("fr-FR", { dateStyle: "medium" })} → ${contractDateRange[1].toLocaleDateString("fr-FR", { dateStyle: "medium" })}`
+                          : "À définir"}
+                        {rentalDays
+                          ? ` • ${rentalDays} jour${rentalDays > 1 ? "s" : ""}`
+                          : ""}
+                      </dd>
+                    </div>
                     <div>
                       <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                         Tarif journalier TTC
@@ -3723,41 +3783,44 @@ export default function Catalogue() {
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
                   <Label>Prix total TTC</Label>
-                  <Input value={contractForm.totalPriceTTC} readOnly />
+                  <Input value={contractForm.totalPriceTTC} disabled />
                 </div>
                 <div>
                   <Label>Prix total HT</Label>
-                  <Input value={contractForm.totalPriceHT} readOnly />
+                  <Input value={contractForm.totalPriceHT} disabled />
                 </div>
                 <div>
-                  <Label>Acompte TTC (50 %)</Label>
+                  <Label>Acompte TTC</Label>
                   <Input
-                    type="number"
-                    step={0.01}
-                    min="0"
                     value={contractForm.depositTTC}
-                    onChange={handleDepositTTCChange}
+                    disabled
                   />
                 </div>
                 <div>
                   <Label>Acompte HT</Label>
-                  <Input value={contractForm.depositHT} readOnly />
+                  <Input value={contractForm.depositHT} disabled />
                 </div>
                 <div>
                   <Label>Acompte payé TTC</Label>
-                  <Input value={contractForm.depositPaidTTC} readOnly />
+                  <Input
+                    type="number"
+                    step={0.01}
+                    min="0"
+                    value={contractForm.depositPaidTTC}
+                    onChange={handleDepositPaidTTCChange}
+                  />
                 </div>
                 <div>
                   <Label>Acompte payé HT</Label>
-                  <Input value={contractForm.depositPaidHT} readOnly />
+                  <Input value={contractForm.depositPaidHT} disabled />
                 </div>
                 <div>
                   <Label>Caution TTC</Label>
-                  <Input value={contractForm.cautionTTC} readOnly />
+                  <Input value={contractForm.cautionTTC} disabled />
                 </div>
                 <div>
                   <Label>Caution HT</Label>
-                  <Input value={contractForm.cautionHT} readOnly />
+                  <Input value={contractForm.cautionHT} disabled />
                 </div>
                 <div>
                   <Label>Caution payée TTC</Label>
@@ -3786,7 +3849,7 @@ export default function Catalogue() {
                 </div>
                 <div>
                   <Label>Statut</Label>
-                  <Input value="En attente" readOnly />
+                  <Input value="En attente" disabled />
                 </div>
               </div>
             </section>
@@ -3848,9 +3911,6 @@ export default function Catalogue() {
                                 {formatCurrency(toNumeric(addon.price_ttc ?? addon.price_ht ?? 0))} TTC •{" "}
                                 {formatCurrency(toNumeric(addon.price_ht ?? addon.price_ttc ?? 0))} HT
                               </p>
-                              {addon.included ? (
-                                <p className="mt-1 font-medium text-success-600 dark:text-success-400">Inclus</p>
-                              ) : null}
                             </div>
                           </div>
                         );
