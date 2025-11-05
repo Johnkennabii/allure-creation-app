@@ -3474,6 +3474,16 @@ export default function Catalogue() {
               </section>
             ) : null}
 
+            <RentalPeriodSection
+              contractDatePickerId={contractDatePickerId}
+              contractDateRange={contractDateRange}
+              rentalDays={rentalDays}
+              pricePerDay={pricePerDay}
+              addonsTotals={addonsTotals}
+              contractAvailabilityStatus={contractAvailabilityStatus}
+              onContractDateChange={handleContractDateChange}
+            />
+
             <ClientSelectionSection
               selectedCustomer={selectedCustomer}
               customerSearchTerm={customerSearchTerm}
@@ -3491,16 +3501,6 @@ export default function Catalogue() {
               onShowCustomerFormToggle={setShowCustomerForm}
               onCreateCustomer={handleCreateCustomer}
               onCustomerFormReset={() => setCustomerForm(QUICK_CUSTOMER_DEFAULT)}
-            />
-
-            <RentalPeriodSection
-              contractDatePickerId={contractDatePickerId}
-              contractDateRange={contractDateRange}
-              rentalDays={rentalDays}
-              pricePerDay={pricePerDay}
-              addonsTotals={addonsTotals}
-              contractAvailabilityStatus={contractAvailabilityStatus}
-              onContractDateChange={handleContractDateChange}
             />
 
             <PricingSection
