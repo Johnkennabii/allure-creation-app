@@ -3385,28 +3385,99 @@ export default function Catalogue() {
                   </div>
                 </div>
 
-                <div className="space-y-3">
-                  <MultiSelect
-                    label={`Robes supplémentaires (${additionalSelectedDressIds.length}/${Math.max(packageDressLimit - 1, 0)})`}
-                    options={additionalDressOptions}
-                    defaultSelected={additionalSelectedDressIds}
-                    onChange={handlePackageDressesChange}
-                    disabled={!selectedPackage || packageDressLimit <= 1}
-                    placeholder={
-                      selectedPackage
-                        ? packageDressLimit > 1
-                          ? "Sélectionnez des robes disponibles"
-                          : "Aucune sélection supplémentaire requise"
-                        : "Choisissez un forfait"
-                    }
-                  />
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {packageDressLimit <= 1
-                      ? "Ce forfait inclut uniquement la robe sélectionnée."
-                      : remainingPackageSlots > 0
-                      ? `Sélectionnez encore ${remainingPackageSlots} robe${remainingPackageSlots > 1 ? "s" : ""} pour compléter le forfait.`
-                      : "Forfait complet."}
-                  </p>
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Sélection des robes ({(contractForm.packageDressIds?.length ?? 0)}/{packageDressLimit})
+                    </p>
+
+                    {/* Robe principale */}
+                    <div className="rounded-xl border border-brand-200 bg-brand-50/40 p-4 dark:border-brand-500/30 dark:bg-brand-500/10">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-400 mb-2">
+                        Robe principale (sélectionnée)
+                      </p>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">
+                        {contractDrawer.dress?.name ?? "Robe"}
+                      </p>
+                      {contractDrawer.dress?.reference && (
+                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+                          Réf. {contractDrawer.dress.reference}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Robes supplémentaires */}
+                  {packageDressLimit > 1 && selectedPackage && (
+                    <div className="space-y-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                        Robes supplémentaires ({additionalSelectedDressIds.length}/{Math.max(packageDressLimit - 1, 0)})
+                      </p>
+
+                      {Array.from({ length: packageDressLimit - 1 }).map((_, index) => {
+                        const currentValue = additionalSelectedDressIds[index] || "";
+                        const ordinal = index === 0 ? "1ère" : index === 1 ? "2ème" : index === 2 ? "3ème" : `${index + 1}ème`;
+
+                        return (
+                          <div key={index}>
+                            <Label>{ordinal} robe supplémentaire</Label>
+                            <Select
+                              value={currentValue}
+                              onChange={(value) => {
+                                const baseId = contractDrawer.dress?.id;
+                                if (!baseId) return;
+
+                                const newAdditional = [...additionalSelectedDressIds];
+                                if (value) {
+                                  newAdditional[index] = value;
+                                } else {
+                                  newAdditional.splice(index, 1);
+                                }
+
+                                const uniqueAdditional = newAdditional.filter((id, idx) =>
+                                  id && newAdditional.indexOf(id) === idx
+                                );
+
+                                setContractForm((prev) =>
+                                  prev
+                                    ? {
+                                        ...prev,
+                                        packageDressIds: [baseId, ...uniqueAdditional],
+                                      }
+                                    : prev,
+                                );
+                              }}
+                              options={[
+                                { value: "", label: "— Sélectionner une robe —" },
+                                ...additionalDressOptions.map(opt => ({
+                                  value: opt.value,
+                                  label: opt.text,
+                                })),
+                              ]}
+                              placeholder="Sélectionnez une robe"
+                            />
+                          </div>
+                        );
+                      })}
+
+                      {remainingPackageSlots > 0 && (
+                        <p className="text-xs text-amber-600 dark:text-amber-400">
+                          Sélectionnez encore {remainingPackageSlots} robe{remainingPackageSlots > 1 ? "s" : ""} pour compléter le forfait.
+                        </p>
+                      )}
+                      {remainingPackageSlots === 0 && (
+                        <p className="text-xs text-green-600 dark:text-green-400">
+                          ✓ Forfait complet
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {packageDressLimit <= 1 && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Ce forfait inclut uniquement la robe sélectionnée.
+                    </p>
+                  )}
                 </div>
               </section>
             ) : null}
