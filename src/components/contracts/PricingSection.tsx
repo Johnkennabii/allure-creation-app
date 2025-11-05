@@ -1,8 +1,7 @@
 import type { ContractForm } from "./types";
-import Button from "../ui/button/Button";
 import Input from "../form/input/InputField";
 import Label from "../form/Label";
-import Select from "../ui/select/Select";
+import Select from "../form/Select";
 
 interface PricingSectionProps {
   contractForm: ContractForm;
