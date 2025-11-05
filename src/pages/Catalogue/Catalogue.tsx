@@ -55,7 +55,7 @@ import {
 
 import { IoEyeOutline } from "react-icons/io5";
 import { FaCheckCircle, FaTimesCircle } from "react-icons/fa";
-import { ClientSelectionSection } from "../../components/contracts";
+import { ClientSelectionSection, PricingSection } from "../../components/contracts";
 
 import { ContractTypesAPI, type ContractType } from "../../api/endpoints/contractTypes";
 import { ContractsAPI, type ContractCreatePayload, type ContractFullView } from "../../api/endpoints/contracts";
@@ -180,10 +180,6 @@ const selectContractTypeIdForMode = (types: ContractType[], mode: ContractMode):
   return types[0]?.id ?? null;
 };
 
-const PAYMENT_METHOD_OPTIONS = [
-  { value: "card", label: "Carte bancaire" },
-  { value: "cash", label: "Espèces" },
-];
 
 const QUICK_CUSTOMER_DEFAULT: QuickCustomerFormState = {
   firstname: "",
@@ -3641,81 +3637,12 @@ export default function Catalogue() {
               </div>
             </section>
 
-            <section className="space-y-4 rounded-2xl border border-gray-200 bg-white/80 p-6 shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.02]">
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Tarification</h3>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <Label>Prix total TTC</Label>
-                  <Input value={contractForm.totalPriceTTC} disabled />
-                </div>
-                <div>
-                  <Label>Prix total HT</Label>
-                  <Input value={contractForm.totalPriceHT} disabled />
-                </div>
-                <div>
-                  <Label>Acompte TTC</Label>
-                  <Input
-                    value={contractForm.depositTTC}
-                    disabled
-                  />
-                </div>
-                <div>
-                  <Label>Acompte HT</Label>
-                  <Input value={contractForm.depositHT} disabled />
-                </div>
-                <div>
-                  <Label>Acompte payé TTC</Label>
-                  <Input
-                    type="number"
-                    step={0.01}
-                    min="0"
-                    value={contractForm.depositPaidTTC}
-                    onChange={handleDepositPaidTTCChange}
-                  />
-                </div>
-                <div>
-                  <Label>Acompte payé HT</Label>
-                  <Input value={contractForm.depositPaidHT} disabled />
-                </div>
-                <div>
-                  <Label>Caution TTC</Label>
-                  <Input value={contractForm.cautionTTC} disabled />
-                </div>
-                <div>
-                  <Label>Caution HT</Label>
-                  <Input value={contractForm.cautionHT} disabled />
-                </div>
-                <div>
-                  <Label>Caution payée TTC</Label>
-                  <Input
-                    type="number"
-                    step={0.01}
-                    min="0"
-                    value={contractForm.cautionPaidTTC}
-                    onChange={handleCautionPaidChange}
-                  />
-                </div>
-                <div>
-                  <Label>Caution payée HT</Label>
-                  <Input value={contractForm.cautionPaidHT} readOnly />
-                </div>
-              </div>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <Label>Méthode de paiement</Label>
-                  <Select
-                    value={contractForm.paymentMethod}
-                    onChange={handlePaymentMethodChange}
-                    options={PAYMENT_METHOD_OPTIONS}
-                    placeholder="Sélectionner une méthode"
-                  />
-                </div>
-                <div>
-                  <Label>Statut</Label>
-                  <Input value="En attente" disabled />
-                </div>
-              </div>
-            </section>
+            <PricingSection
+              contractForm={contractForm}
+              onDepositPaidTTCChange={handleDepositPaidTTCChange}
+              onCautionPaidChange={handleCautionPaidChange}
+              onPaymentMethodChange={handlePaymentMethodChange}
+            />
 
             <section className="space-y-4 rounded-2xl border border-gray-200 bg-white/80 p-6 shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.02]">
               <div className="flex items-center justify-between">
