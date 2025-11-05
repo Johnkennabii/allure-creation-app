@@ -61,6 +61,15 @@ export interface ContractPackage {
 
 export type ContractMode = "daily" | "package";
 
+export interface AddonsTotals {
+  chargeableHT: number;
+  chargeableTTC: number;
+  includedHT: number;
+  includedTTC: number;
+  includedCount: number;
+  totalCount: number;
+}
+
 export interface DressDetails {
   id: string;
   name: string | null;

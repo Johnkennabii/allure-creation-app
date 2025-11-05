@@ -15,7 +15,6 @@ import Label from "../../components/form/Label";
 import Select from "../../components/form/Select";
 import PaginationWithIcon from "../../components/tables/DataTables/TableOne/PaginationWithIcon";
 import DatePicker from "../../components/form/date-picker";
-import Checkbox from "../../components/form/input/Checkbox";
 import { useNotification } from "../../context/NotificationContext";
 import { useAuth } from "../../context/AuthContext";
 import {
@@ -55,7 +54,7 @@ import {
 
 import { IoEyeOutline } from "react-icons/io5";
 import { FaCheckCircle, FaTimesCircle } from "react-icons/fa";
-import { ClientSelectionSection, PricingSection } from "../../components/contracts";
+import { ClientSelectionSection, PricingSection, OptionsSection } from "../../components/contracts";
 
 import { ContractTypesAPI, type ContractType } from "../../api/endpoints/contractTypes";
 import { ContractsAPI, type ContractCreatePayload, type ContractFullView } from "../../api/endpoints/contracts";
@@ -3644,121 +3643,16 @@ export default function Catalogue() {
               onPaymentMethodChange={handlePaymentMethodChange}
             />
 
-            <section className="space-y-4 rounded-2xl border border-gray-200 bg-white/80 p-6 shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.02]">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Options</h3>
-                {addonsLoading ? (
-                  <span className="text-xs text-gray-500 dark:text-gray-400">Chargement…</span>
-                ) : null}
-              </div>
-              {contractDrawer.mode === "package" ? (
-                <>
-                  {packageIncludedAddons.length ? (
-                    <div className="space-y-3">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                        Inclus dans le forfait
-                      </p>
-                      {packageIncludedAddons.map((addon) => (
-                        <div
-                          key={addon.id}
-                          className="flex items-center justify-between rounded-lg border border-gray-200 bg-white/70 px-4 py-3 dark:border-gray-700 dark:bg-white/[0.02]"
-                        >
-                          <Checkbox checked onChange={() => undefined} label={addon.name} disabled />
-                          <div className="text-right text-xs text-gray-500 dark:text-gray-400">
-                            <p>
-                              {formatCurrency(toNumeric(addon.price_ttc ?? addon.price_ht ?? 0))} TTC •{" "}
-                              {formatCurrency(toNumeric(addon.price_ht ?? addon.price_ttc ?? 0))} HT
-                            </p>
-                            <p className="mt-1 font-medium text-brand-600 dark:text-brand-400">Inclus dans le forfait</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Ce forfait n'inclut aucune option par défaut.
-                    </p>
-                  )}
-                  {optionalAddons.length ? (
-                    <div className="space-y-3">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                        Options supplémentaires
-                      </p>
-                      {optionalAddons.map((addon) => {
-                        const isSelected = selectedAddonIds.includes(addon.id);
-                        return (
-                          <div
-                            key={addon.id}
-                            className="flex items-center justify-between rounded-lg border border-gray-200 bg-white/70 px-4 py-3 dark:border-gray-700 dark:bg-white/[0.02]"
-                          >
-                            <Checkbox
-                              checked={isSelected}
-                              onChange={(checked) => handleAddonToggle(addon.id, checked)}
-                              label={addon.name}
-                            />
-                            <div className="text-right text-xs text-gray-500 dark:text-gray-400">
-                              <p>
-                                {formatCurrency(toNumeric(addon.price_ttc ?? addon.price_ht ?? 0))} TTC •{" "}
-                                {formatCurrency(toNumeric(addon.price_ht ?? addon.price_ttc ?? 0))} HT
-                              </p>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Aucune option supplémentaire disponible pour ce forfait.
-                    </p>
-                  )}
-                </>
-              ) : contractAddons.length ? (
-                <>
-                  <div className="space-y-3">
-                    {contractAddons.map((addon) => {
-                      const isSelected = selectedAddonIds.includes(addon.id);
-                      return (
-                        <div
-                          key={addon.id}
-                          className="flex items-center justify-between rounded-lg border border-gray-200 bg-white/70 px-4 py-3 dark:border-gray-700 dark:bg-white/[0.02]"
-                        >
-                          <Checkbox
-                            checked={isSelected}
-                            onChange={(checked) => handleAddonToggle(addon.id, checked)}
-                            label={addon.name}
-                          />
-                          <div className="text-right text-xs text-gray-500 dark:text-gray-400">
-                            <p>
-                              {formatCurrency(toNumeric(addon.price_ttc ?? addon.price_ht ?? 0))} TTC •{" "}
-                              {formatCurrency(toNumeric(addon.price_ht ?? addon.price_ttc ?? 0))} HT
-                            </p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </>
-              ) : (
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Aucune option de contrat n'est configurée pour le moment.
-                </p>
-              )}
-              <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-600 dark:border-gray-700 dark:bg-white/[0.02] dark:text-gray-300">
-                {addonsTotals.totalCount ? (
-                  <>
-                    <p className="font-medium text-gray-700 dark:text-gray-200">
-                      {addonsTotals.totalCount} option{addonsTotals.totalCount > 1 ? "s" : ""} sélectionnée
-                    </p>
-                    <p className="mt-1">
-                      Total optionnel : {formatCurrency(addonsTotals.chargeableTTC)} TTC •{" "}
-                      {formatCurrency(addonsTotals.chargeableHT)} HT
-                    </p>
-                  </>
-                ) : (
-                  <p>Aucune option sélectionnée.</p>
-                )}
-              </div>
-            </section>
+            <OptionsSection
+              mode={contractDrawer.mode}
+              addonsLoading={addonsLoading}
+              packageIncludedAddons={packageIncludedAddons}
+              optionalAddons={optionalAddons}
+              contractAddons={contractAddons}
+              selectedAddonIds={selectedAddonIds}
+              addonsTotals={addonsTotals}
+              onAddonToggle={handleAddonToggle}
+            />
 
             <div className="flex justify-end gap-3 border-t border-gray-200 pt-4 dark:border-gray-800">
               <Button type="button" variant="outline" onClick={closeContractDrawer}>
