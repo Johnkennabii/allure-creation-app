@@ -7,7 +7,6 @@ import { Table, TableBody, TableCell, TableHeader, TableRow } from "../../compon
 import Button from "../../components/ui/button/Button";
 import { Modal } from "../../components/ui/modal";
 import Input from "../../components/form/input/InputField";
-import TextArea from "../../components/form/input/TextArea";
 import Badge from "../../components/ui/badge/Badge";
 import { useNotification } from "../../context/NotificationContext";
 import { useAuth } from "../../context/AuthContext";
@@ -108,8 +107,8 @@ export default function DressColors() {
   });
   const [createOpen, setCreateOpen] = useState(false);
   const [editColor, setEditColor] = useState<ColorRow | null>(null);
-  const [createForm, setCreateForm] = useState({ name: "", description: "", hex_code: "#000000" });
-  const [editForm, setEditForm] = useState({ name: "", description: "", hex_code: "#000000" });
+  const [createForm, setCreateForm] = useState({ name: "", hex_code: "#000000" });
+  const [editForm, setEditForm] = useState({ name: "", hex_code: "#000000" });
   const [confirmState, setConfirmState] = useState<ConfirmState>({ mode: "soft", color: null });
 
   const { notify } = useNotification();
@@ -155,7 +154,7 @@ export default function DressColors() {
       notify("warning", "Action non autorisée", "Vous n'avez pas les droits suffisants.");
       return;
     }
-    setCreateForm({ name: "", description: "", hex_code: "#000000" });
+    setCreateForm({ name: "", hex_code: "#000000" });
     setCreateOpen(true);
   };
 
@@ -168,7 +167,6 @@ export default function DressColors() {
     setEditColor(row);
     setEditForm({
       name: row.name,
-      description: row.description ?? "",
       hex_code: row.hexCodeDisplay || "#000000",
     });
   };
@@ -256,7 +254,6 @@ export default function DressColors() {
       setCreating(true);
       const payload = {
         name: createForm.name.trim(),
-        description: createForm.description.trim() || undefined,
         hex_code: hex,
       };
       const created = await DressColorsAPI.create(payload);
@@ -290,7 +287,6 @@ export default function DressColors() {
       setUpdating(true);
       const payload = {
         name: editForm.name.trim(),
-        description: editForm.description.trim() || undefined,
         hex_code: hex,
       };
       const updated = await DressColorsAPI.update(editColor.id, payload);
@@ -584,17 +580,6 @@ export default function DressColors() {
             </div>
             <div>
               <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Description
-              </label>
-              <TextArea
-                rows={4}
-                value={createForm.description}
-                onChange={(value) => setCreateForm((prev) => ({ ...prev, description: value }))}
-                placeholder="Décrivez brièvement cette couleur"
-              />
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
                 Code couleur (hex)
               </label>
               <div className="flex flex-wrap items-center gap-3">
@@ -692,17 +677,6 @@ export default function DressColors() {
                 onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))}
                 placeholder="Ex : Bleu nuit"
                 required
-              />
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Description
-              </label>
-              <TextArea
-                rows={4}
-                value={editForm.description}
-                onChange={(value) => setEditForm((prev) => ({ ...prev, description: value }))}
-                placeholder="Décrivez brièvement cette couleur"
               />
             </div>
             <div>

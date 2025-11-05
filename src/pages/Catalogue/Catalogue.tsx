@@ -525,18 +525,12 @@ export default function Catalogue() {
       (acc, addon) => {
         const ht = toNumeric(addon.price_ht ?? addon.price_ttc ?? 0);
         const ttc = toNumeric(addon.price_ttc ?? addon.price_ht ?? 0);
-        const isPackageIncluded = contractDrawer.mode === "package" && packageAddonIds.includes(addon.id);
 
-        if (addon.included || isPackageIncluded) {
-          acc.includedHT += ht;
-          acc.includedTTC += ttc;
-          acc.includedCount += 1;
-        } else {
-          acc.chargeableHT += ht;
-          acc.chargeableTTC += ttc;
-        }
-
+        // Toutes les options sont facturées (plus de concept "inclus")
+        acc.chargeableHT += ht;
+        acc.chargeableTTC += ttc;
         acc.totalCount += 1;
+
         return acc;
       },
       {
@@ -548,7 +542,7 @@ export default function Catalogue() {
         totalCount: 0,
       },
     );
-  }, [selectedAddonsDetails, contractDrawer.mode, packageAddonIds]);
+  }, [selectedAddonsDetails]);
 
   const packageDressLimit = selectedPackage?.num_dresses ?? 1;
   const baseDressId = contractDrawer.dress?.id ?? null;
@@ -1693,6 +1687,23 @@ export default function Catalogue() {
     const start = new Date(startRaw.getTime());
     start.setHours(9, 0, 0, 0);
 
+    // For package mode, force 1-day rental period
+    if (contractDrawer.mode === "package") {
+      const end = new Date(start.getTime());
+      end.setHours(18, 0, 0, 0);
+
+      setContractForm((prev) =>
+        prev
+          ? {
+              ...prev,
+              startDate: start.toISOString(),
+              endDate: end.toISOString(),
+            }
+          : prev,
+      );
+      return;
+    }
+
     const endRaw = selectedDates[1] ?? start;
     let end = new Date(endRaw.getTime());
     end.setHours(18, 0, 0, 0);
@@ -1721,7 +1732,7 @@ export default function Catalogue() {
           }
         : prev,
     );
-  }, []);
+  }, [contractDrawer.mode]);
 
   const handleAddonToggle = (addonId: string, explicit?: boolean) => {
     setSelectedAddonIds((prev) => {
@@ -3305,42 +3316,6 @@ export default function Catalogue() {
               </dl>
             </section>
 
-            {/* Section Période de location - Uniquement pour forfait */}
-            {contractDrawer.mode === "package" && (
-              <section className="space-y-4 rounded-2xl border border-gray-200 bg-white/80 p-6 shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.02]">
-                <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Période de location</h3>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="flex flex-col gap-2">
-                    <DatePicker
-                      label="Dates de location"
-                      id={contractDatePickerId}
-                      mode="range"
-                      defaultDate={contractDateRange}
-                      placeholder="Sélectionnez une période"
-                      onChange={handleContractDateChange}
-                      options={{
-                        enableTime: true,
-                        time_24hr: true,
-                        minuteIncrement: 15,
-                        dateFormat: "d/m/Y H:i",
-                        closeOnSelect: false,
-                      }}
-                    />
-                  </div>
-                  <div className="rounded-xl border border-gray-200 bg-gray-50/70 p-4 text-sm dark:border-gray-700 dark:bg-white/[0.02]">
-                    <p className="font-medium text-gray-800 dark:text-gray-200">
-                      {rentalDays} jour{rentalDays > 1 ? "s" : ""}
-                    </p>
-                    {contractDateRange && (
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        Du {contractDateRange[0].toLocaleDateString("fr-FR", { dateStyle: "short" })} au {contractDateRange[1].toLocaleDateString("fr-FR", { dateStyle: "short" })}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </section>
-            )}
-
             {contractDrawer.mode === "package" ? (
               <section className="space-y-5 rounded-2xl border border-gray-200 bg-white/80 p-6 shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.02]">
                 <div className="grid gap-4 md:grid-cols-2">
@@ -3670,16 +3645,16 @@ export default function Catalogue() {
                   <DatePicker
                     label="Dates de location"
                     id={contractDatePickerId}
-                    mode="range"
+                    mode={contractDrawer.mode === "package" ? "single" : "range"}
                     defaultDate={contractDateRange}
-                    placeholder="Sélectionnez une période"
+                    placeholder={contractDrawer.mode === "package" ? "Sélectionnez une date" : "Sélectionnez une période"}
                     onChange={handleContractDateChange}
                     options={{
                       enableTime: true,
                       time_24hr: true,
                       minuteIncrement: 15,
                       dateFormat: "d/m/Y H:i",
-                      closeOnSelect: false,
+                      closeOnSelect: contractDrawer.mode === "package",
                     }}
                   />
 
@@ -3698,11 +3673,6 @@ export default function Catalogue() {
                         Options sélectionnées : {addonsTotals.totalCount} (
                         {formatCurrency(addonsTotals.chargeableTTC)} TTC)
                       </p>
-                      {addonsTotals.includedCount ? (
-                        <p>
-                          Inclus : {addonsTotals.includedCount} ({formatCurrency(addonsTotals.includedTTC)} TTC)
-                        </p>
-                      ) : null}
                     </div>
                   ) : null}
                   <p
@@ -3894,9 +3864,6 @@ export default function Catalogue() {
                               {formatCurrency(toNumeric(addon.price_ttc ?? addon.price_ht ?? 0))} TTC •{" "}
                               {formatCurrency(toNumeric(addon.price_ht ?? addon.price_ttc ?? 0))} HT
                             </p>
-                            {addon.included ? (
-                              <p className="mt-1 font-medium text-success-600 dark:text-success-400">Inclus</p>
-                            ) : null}
                           </div>
                         </div>
                       );
@@ -3918,11 +3885,6 @@ export default function Catalogue() {
                       Total optionnel : {formatCurrency(addonsTotals.chargeableTTC)} TTC •{" "}
                       {formatCurrency(addonsTotals.chargeableHT)} HT
                     </p>
-                    {addonsTotals.includedCount ? (
-                      <p className="mt-1">
-                        Inclus : {addonsTotals.includedCount} ({formatCurrency(addonsTotals.includedTTC)} TTC)
-                      </p>
-                    ) : null}
                   </>
                 ) : (
                   <p>Aucune option sélectionnée.</p>
