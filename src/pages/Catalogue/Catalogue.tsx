@@ -16,7 +16,6 @@ import Select from "../../components/form/Select";
 import PaginationWithIcon from "../../components/tables/DataTables/TableOne/PaginationWithIcon";
 import DatePicker from "../../components/form/date-picker";
 import Checkbox from "../../components/form/input/Checkbox";
-import MultiSelect from "../../components/form/MultiSelect";
 import { useNotification } from "../../context/NotificationContext";
 import { useAuth } from "../../context/AuthContext";
 import {
@@ -1839,25 +1838,6 @@ export default function Catalogue() {
         : prev,
     );
   };
-
-  const handlePackageDressesChange = useCallback(
-    (values: string[]) => {
-      const baseId = contractDrawer.dress?.id;
-      if (!baseId) return;
-      const limit = Math.max(packageDressLimit - 1, 0);
-      const sanitized = values.filter(Boolean).filter((id) => id !== baseId);
-      const trimmed = limit > 0 ? sanitized.slice(0, limit) : [];
-      setContractForm((prev) =>
-        prev
-          ? {
-              ...prev,
-              packageDressIds: [baseId, ...trimmed],
-            }
-          : prev,
-      );
-    },
-    [contractDrawer.dress, packageDressLimit],
-  );
 
   const handleDepositTTCChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value;
