@@ -3309,6 +3309,16 @@ export default function Catalogue() {
               pricePerDay={pricePerDay}
             />
 
+            <RentalPeriodSection
+              contractDatePickerId={contractDatePickerId}
+              contractDateRange={contractDateRange}
+              rentalDays={rentalDays}
+              pricePerDay={pricePerDay}
+              addonsTotals={addonsTotals}
+              contractAvailabilityStatus={contractAvailabilityStatus}
+              onContractDateChange={handleContractDateChange}
+            />
+
             {contractDrawer.mode === "package" ? (
               <section className="space-y-5 rounded-2xl border border-gray-200 bg-white/80 p-6 shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.02]">
                 <div className="grid gap-4 md:grid-cols-2">
@@ -3473,16 +3483,6 @@ export default function Catalogue() {
                 </div>
               </section>
             ) : null}
-
-            <RentalPeriodSection
-              contractDatePickerId={contractDatePickerId}
-              contractDateRange={contractDateRange}
-              rentalDays={rentalDays}
-              pricePerDay={pricePerDay}
-              addonsTotals={addonsTotals}
-              contractAvailabilityStatus={contractAvailabilityStatus}
-              onContractDateChange={handleContractDateChange}
-            />
 
             <ClientSelectionSection
               selectedCustomer={selectedCustomer}
