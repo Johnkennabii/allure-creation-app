@@ -54,7 +54,7 @@ import {
 
 import { IoEyeOutline } from "react-icons/io5";
 import { FaCheckCircle, FaTimesCircle } from "react-icons/fa";
-import { ClientSelectionSection, PricingSection, OptionsSection } from "../../components/contracts";
+import { ClientSelectionSection, PricingSection, OptionsSection, ContractInfoSection } from "../../components/contracts";
 
 import { ContractTypesAPI, type ContractType } from "../../api/endpoints/contractTypes";
 import { ContractsAPI, type ContractCreatePayload, type ContractFullView } from "../../api/endpoints/contracts";
@@ -3299,96 +3299,15 @@ export default function Catalogue() {
               </div>
             )}
 
-            <section className="space-y-4 rounded-2xl border border-gray-200 bg-white/80 p-6 shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.02]">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="space-y-1">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    Contrat
-                  </p>
-                  <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                    {contractForm.contractNumber}
-                  </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {contractDrawer.mode === "daily" ? "Location journalière" : "Location forfaitaire"}
-                  </p>
-                </div>
-                <Badge variant="light" color="warning" size="sm">
-                  En attente
-                </Badge>
-              </div>
-              <dl className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    Type de contrat
-                  </dt>
-                  <dd className="mt-1 text-sm text-gray-800 dark:text-gray-200">
-                    {contractTypeLabel ?? "Non défini"}
-                  </dd>
-                </div>
-                {contractDrawer.mode === "package" ? (
-                  <>
-                    <div>
-                      <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                        Forfait
-                      </dt>
-                      <dd className="mt-1 text-sm text-gray-800 dark:text-gray-200">
-                        {selectedPackage ? selectedPackage.name : "Non sélectionné"}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                        Période
-                      </dt>
-                      <dd className="mt-1 text-sm text-gray-800 dark:text-gray-200">
-                        {contractDateRange
-                          ? `${contractDateRange[0].toLocaleDateString("fr-FR", { dateStyle: "medium" })} → ${contractDateRange[1].toLocaleDateString("fr-FR", { dateStyle: "medium" })}`
-                          : "À définir"}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                        Tarif du forfait TTC
-                      </dt>
-                      <dd className="mt-1 text-sm text-gray-800 dark:text-gray-200">
-                        {selectedPackage ? formatCurrency(selectedPackage.price_ttc) : "—"}
-                      </dd>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div>
-                      <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                        Période
-                      </dt>
-                      <dd className="mt-1 text-sm text-gray-800 dark:text-gray-200">
-                        {contractDateRange
-                          ? `${contractDateRange[0].toLocaleDateString("fr-FR", { dateStyle: "medium" })} → ${contractDateRange[1].toLocaleDateString("fr-FR", { dateStyle: "medium" })}`
-                          : "À définir"}
-                        {rentalDays
-                          ? ` • ${rentalDays} jour${rentalDays > 1 ? "s" : ""}`
-                          : ""}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                        Tarif journalier TTC
-                      </dt>
-                      <dd className="mt-1 text-sm text-gray-800 dark:text-gray-200">
-                        {formatCurrency(pricePerDay.ttc)}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                        Tarif journalier HT
-                      </dt>
-                      <dd className="mt-1 text-sm text-gray-800 dark:text-gray-200">
-                        {formatCurrency(pricePerDay.ht)}
-                      </dd>
-                    </div>
-                  </>
-                )}
-              </dl>
-            </section>
+            <ContractInfoSection
+              contractNumber={contractForm.contractNumber}
+              mode={contractDrawer.mode}
+              contractTypeLabel={contractTypeLabel}
+              selectedPackage={selectedPackage}
+              contractDateRange={contractDateRange}
+              rentalDays={rentalDays}
+              pricePerDay={pricePerDay}
+            />
 
             {contractDrawer.mode === "package" ? (
               <section className="space-y-5 rounded-2xl border border-gray-200 bg-white/80 p-6 shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.02]">
