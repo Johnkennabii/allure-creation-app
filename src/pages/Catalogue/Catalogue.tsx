@@ -54,7 +54,7 @@ import {
 } from "../../icons";
 
 import { IoEyeOutline } from "react-icons/io5";
-import { FaCheckCircle, FaTimesCircle } from "react-icons/fa";
+import { FaCheckCircle, FaTimesCircle, FaBarcode } from "react-icons/fa";
 
 import { ContractTypesAPI, type ContractType } from "../../api/endpoints/contractTypes";
 import { ContractsAPI, type ContractCreatePayload, type ContractFullView } from "../../api/endpoints/contracts";
@@ -232,6 +232,11 @@ const extractStorageId = (url: string): string => {
     const parts = url.split("/");
     return parts.pop()?.split("?")[0] ?? "";
   }
+};
+
+const generateReference = (): string => {
+  const randomDigits = Math.floor(1000000 + Math.random() * 9000000);
+  return `AC-RB-${randomDigits}`;
 };
 
 const buildDressFormState = (dress: DressDetails): DressFormState => ({
@@ -1941,7 +1946,25 @@ export default function Catalogue() {
   };
 
   const handleCreateChange = (field: keyof DressFormState, value: string) => {
-    setCreateForm((prev) => ({ ...prev, [field]: value }));
+    setCreateForm((prev) => {
+      const updated = { ...prev, [field]: value };
+
+      // Calcul automatique du HT à partir du TTC (TVA 20%)
+      if (field === "price_ttc" && value) {
+        const ttc = parseFloat(value);
+        if (!isNaN(ttc)) {
+          updated.price_ht = (ttc / 1.20).toFixed(2);
+        }
+      }
+      if (field === "price_per_day_ttc" && value) {
+        const ttc = parseFloat(value);
+        if (!isNaN(ttc)) {
+          updated.price_per_day_ht = (ttc / 1.20).toFixed(2);
+        }
+      }
+
+      return updated;
+    });
   };
 
   const handleCreateImagesDrop = useCallback(
@@ -2076,7 +2099,26 @@ export default function Catalogue() {
   };
 
   const handleEditChange = (field: keyof DressFormState, value: string) => {
-    setEditForm((prev) => (prev ? { ...prev, [field]: value } : prev));
+    setEditForm((prev) => {
+      if (!prev) return prev;
+      const updated = { ...prev, [field]: value };
+
+      // Calcul automatique du HT à partir du TTC (TVA 20%)
+      if (field === "price_ttc" && value) {
+        const ttc = parseFloat(value);
+        if (!isNaN(ttc)) {
+          updated.price_ht = (ttc / 1.20).toFixed(2);
+        }
+      }
+      if (field === "price_per_day_ttc" && value) {
+        const ttc = parseFloat(value);
+        if (!isNaN(ttc)) {
+          updated.price_per_day_ht = (ttc / 1.20).toFixed(2);
+        }
+      }
+
+      return updated;
+    });
   };
 
   const handleEditSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -2163,14 +2205,14 @@ export default function Catalogue() {
   const handleRemoveEditImage = useCallback(
     async (imageUrl: string) => {
       if (!editDress) return;
-      const storageId = extractStorageId(imageUrl);
-      if (!storageId) {
+      const imageId = extractStorageId(imageUrl);
+      if (!imageId) {
         notify("error", "Suppression impossible", "Identifiant du fichier introuvable.");
         return;
       }
       setEditUploadingImages(true);
       try {
-        const updated = await DressesAPI.deleteImage(storageId);
+        const updated = await DressesAPI.deleteImage(editDress.id, imageId);
         setEditDress(updated);
         setEditForm(buildDressFormState(updated));
         updateDressInList(updated);
@@ -2696,11 +2738,22 @@ export default function Catalogue() {
             </div>
             <div>
               <Label>Référence</Label>
-              <Input
-                value={createForm.reference}
-                onChange={(event) => handleCreateChange("reference", event.target.value)}
-                required
-              />
+              <div className="relative">
+                <Input
+                  value={createForm.reference}
+                  onChange={(event) => handleCreateChange("reference", event.target.value)}
+                  required
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleCreateChange("reference", generateReference())}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-brand-600 hover:text-brand-700 transition-colors"
+                  title="Générer une référence automatique"
+                >
+                  <FaBarcode size={18} />
+                </button>
+              </div>
             </div>
             <div>
               <Label>Prix HT (€)</Label>
@@ -2709,8 +2762,8 @@ export default function Catalogue() {
                 step="0.01"
                 min="0"
                 value={createForm.price_ht}
-                onChange={(event) => handleCreateChange("price_ht", event.target.value)}
-                required
+                disabled
+                className="bg-gray-100 cursor-not-allowed"
               />
             </div>
             <div>
@@ -2731,7 +2784,8 @@ export default function Catalogue() {
                 step="0.01"
                 min="0"
                 value={createForm.price_per_day_ht}
-                onChange={(event) => handleCreateChange("price_per_day_ht", event.target.value)}
+                disabled
+                className="bg-gray-100 cursor-not-allowed"
               />
             </div>
             <div>
@@ -3004,11 +3058,22 @@ export default function Catalogue() {
               </div>
               <div>
                 <Label>Référence</Label>
-                <Input
-                  value={editForm.reference}
-                  onChange={(event) => handleEditChange("reference", event.target.value)}
-                  required
-                />
+                <div className="relative">
+                  <Input
+                    value={editForm.reference}
+                    onChange={(event) => handleEditChange("reference", event.target.value)}
+                    required
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleEditChange("reference", generateReference())}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-brand-600 hover:text-brand-700 transition-colors"
+                    title="Générer une référence automatique"
+                  >
+                    <FaBarcode size={18} />
+                  </button>
+                </div>
               </div>
               <div>
                 <Label>Prix HT (€)</Label>
@@ -3017,8 +3082,8 @@ export default function Catalogue() {
                   step="0.01"
                   min="0"
                   value={editForm.price_ht}
-                  onChange={(event) => handleEditChange("price_ht", event.target.value)}
-                  required
+                  disabled
+                  className="bg-gray-100 cursor-not-allowed"
                 />
               </div>
               <div>
@@ -3039,7 +3104,8 @@ export default function Catalogue() {
                   step="0.01"
                   min="0"
                   value={editForm.price_per_day_ht}
-                  onChange={(event) => handleEditChange("price_per_day_ht", event.target.value)}
+                  disabled
+                  className="bg-gray-100 cursor-not-allowed"
                 />
               </div>
               <div>

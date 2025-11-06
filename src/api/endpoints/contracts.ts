@@ -17,6 +17,10 @@ export interface ContractDress {
   price_per_day_ht?: string | number;
   price_per_day_ttc?: string | number;
   images?: string[];
+  type_name?: string | null;
+  size_name?: string | null;
+  color_name?: string | null;
+  condition_name?: string | null;
   dress?: {
     id: string;
     name: string;
@@ -26,6 +30,10 @@ export interface ContractDress {
     price_per_day_ht?: string | number | null;
     price_per_day_ttc?: string | number | null;
     images?: string[];
+    type_name?: string | null;
+    size_name?: string | null;
+    color_name?: string | null;
+    condition_name?: string | null;
   } | null;
 }
 
@@ -79,6 +87,7 @@ export interface ContractFullView {
   customer_country?: string;
   customer_address?: string;
   customer_postal_code?: string;
+  customer_birthday?: string | null;
   contract_type?: {
     id: string;
     name: string;
@@ -216,17 +225,101 @@ export const ContractsAPI = {
   getSignatureByToken: async (token: string): Promise<ContractFullView> => {
     const res = await httpClient.get(`/sign-links/${token}`);
     const data = res?.data ?? res;
-    if (data?.contract && typeof data.contract === "object") return data.contract as ContractFullView;
-    if (data?.data && typeof data.data === "object") return data.data as ContractFullView;
-    return data as ContractFullView;
+    let contract: any;
+    if (data?.contract && typeof data.contract === "object") {
+      contract = data.contract;
+    } else if (data?.data && typeof data.data === "object") {
+      contract = data.data;
+    } else {
+      contract = data;
+    }
+
+    // Map nested customer object to flat properties
+    if (contract?.customer && typeof contract.customer === "object") {
+      const customer = contract.customer;
+      contract.customer_firstname = customer.firstname;
+      contract.customer_lastname = customer.lastname;
+      contract.customer_email = customer.email;
+      contract.customer_phone = customer.phone;
+      contract.customer_city = customer.city;
+      contract.customer_country = customer.country;
+      contract.customer_address = customer.address;
+      contract.customer_postal_code = customer.postal_code;
+      contract.customer_birthday = customer.birthday;
+    }
+
+    // Map nested dresses
+    if (contract?.dresses && Array.isArray(contract.dresses)) {
+      contract.dresses = contract.dresses.map((dressItem: any) => {
+        const dress = dressItem?.dress || dressItem;
+        return {
+          ...dress,
+          type_name: dress?.type?.name || dress?.type_name,
+          size_name: dress?.size?.name || dress?.size_name,
+          color_name: dress?.color?.name || dress?.color_name,
+          condition_name: dress?.condition?.name || dress?.condition_name,
+        };
+      });
+    }
+
+    // Map nested addons
+    if (contract?.addon_links && Array.isArray(contract.addon_links)) {
+      contract.addons = contract.addon_links
+        .map((link: any) => link?.addon)
+        .filter((addon: any) => Boolean(addon));
+    }
+
+    return contract as ContractFullView;
   },
 
   signByToken: async (token: string): Promise<ContractFullView> => {
     const res = await httpClient.post(`/sign-links/${token}/sign`, {});
     const data = res?.data ?? res;
-    if (data?.contract && typeof data.contract === "object") return data.contract as ContractFullView;
-    if (data?.data && typeof data.data === "object") return data.data as ContractFullView;
-    return data as ContractFullView;
+    let contract: any;
+    if (data?.contract && typeof data.contract === "object") {
+      contract = data.contract;
+    } else if (data?.data && typeof data.data === "object") {
+      contract = data.data;
+    } else {
+      contract = data;
+    }
+
+    // Map nested customer object to flat properties
+    if (contract?.customer && typeof contract.customer === "object") {
+      const customer = contract.customer;
+      contract.customer_firstname = customer.firstname;
+      contract.customer_lastname = customer.lastname;
+      contract.customer_email = customer.email;
+      contract.customer_phone = customer.phone;
+      contract.customer_city = customer.city;
+      contract.customer_country = customer.country;
+      contract.customer_address = customer.address;
+      contract.customer_postal_code = customer.postal_code;
+      contract.customer_birthday = customer.birthday;
+    }
+
+    // Map nested dresses
+    if (contract?.dresses && Array.isArray(contract.dresses)) {
+      contract.dresses = contract.dresses.map((dressItem: any) => {
+        const dress = dressItem?.dress || dressItem;
+        return {
+          ...dress,
+          type_name: dress?.type?.name || dress?.type_name,
+          size_name: dress?.size?.name || dress?.size_name,
+          color_name: dress?.color?.name || dress?.color_name,
+          condition_name: dress?.condition?.name || dress?.condition_name,
+        };
+      });
+    }
+
+    // Map nested addons
+    if (contract?.addon_links && Array.isArray(contract.addon_links)) {
+      contract.addons = contract.addon_links
+        .map((link: any) => link?.addon)
+        .filter((addon: any) => Boolean(addon));
+    }
+
+    return contract as ContractFullView;
   },
 
   search: async (query: string, limit = 6): Promise<ContractFullView[]> => {

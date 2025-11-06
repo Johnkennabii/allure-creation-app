@@ -304,8 +304,17 @@ export const DressesAPI = {
     return extractUploadList(res);
   },
 
-  async deleteImage(storageId: string): Promise<DressDetails> {
-    const res = await httpClient.delete(`/dress-storage/${storageId}`);
+  async deleteImage(dressId: string, imageId: string): Promise<DressDetails> {
+    const res = await httpClient(
+      `/dresses/${dressId}/images/${imageId}`,
+      {
+        method: "DELETE",
+        body: JSON.stringify({ keys: [imageId] }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
+    );
     if (res?.data && typeof res.data === "object") {
       return normalizeDress(res.data);
     }

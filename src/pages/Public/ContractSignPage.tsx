@@ -3,6 +3,8 @@ import { useParams } from "react-router-dom";
 import SpinnerOne from "../../components/ui/spinner/SpinnerOne";
 import Button from "../../components/ui/button/Button";
 import { Modal } from "../../components/ui/modal";
+import Checkbox from "../../components/form/input/Checkbox";
+import Label from "../../components/form/Label";
 import { useNotification } from "../../context/NotificationContext";
 import {
   ContractsAPI,
@@ -51,6 +53,7 @@ export default function ContractSignPage() {
   const [contract, setContract] = useState<ContractFullView | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [signing, setSigning] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   useEffect(() => {
     if (!token) {
@@ -148,28 +151,54 @@ export default function ContractSignPage() {
     );
   }
 
+  const handleCloseModal = () => {
+    setModalOpen(false);
+    setAcceptedTerms(false);
+  };
+
   const legalModal = (
-    <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} className="max-w-2xl w-full p-6">
+    <Modal isOpen={modalOpen} onClose={handleCloseModal} className="max-w-2xl w-full p-6 !bg-white" showCloseButton={false}>
       <div className="space-y-6">
         <div>
-          <h2 className="text-lg font-semibold text-gray-900">Confirmation de signature</h2>
-          <p className="mt-2 text-sm leading-relaxed text-gray-600">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-900">Confirmation de signature</h2>
+          <p className="mt-2 text-sm leading-relaxed text-gray-600 dark:text-gray-600">
             En validant la signature électronique de ce document, le signataire reconnaît expressément avoir pris
-            connaissance de l’ensemble de son contenu et en accepter toutes les dispositions sans réserve.
+            connaissance de l'ensemble de son contenu et en accepter toutes les dispositions sans réserve.
           </p>
-          <p className="mt-2 text-sm leading-relaxed text-gray-600">
+          <p className="mt-2 text-sm leading-relaxed text-gray-600 dark:text-gray-600">
             Cette signature constitue un engagement ferme et définitif entre les parties.
           </p>
-          <p className="mt-2 text-sm leading-relaxed text-gray-600">
+          <p className="mt-2 text-sm leading-relaxed text-gray-600 dark:text-gray-600">
             Le document signé électroniquement est conservé de manière sécurisée afin de garantir son intégrité et sa
             valeur probante.
           </p>
         </div>
+
+        <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+          <div className="flex items-start gap-3">
+            <Checkbox
+              id="accept-terms"
+              checked={acceptedTerms}
+              onChange={(checked) => setAcceptedTerms(checked)}
+              disabled={signing}
+              className="!border-gray-300 dark:!border-gray-300"
+            />
+            <Label htmlFor="accept-terms" className="!mb-0 !text-sm !text-gray-700 dark:!text-gray-700 cursor-pointer">
+              <strong>J'accepte</strong> les conditions générales et je confirme avoir lu et compris l'intégralité du contrat.
+            </Label>
+          </div>
+        </div>
+
         <div className="flex items-center justify-end gap-3">
-          <Button variant="outline" onClick={() => setModalOpen(false)} disabled={signing}>
+          <Button
+            variant="outline"
+            onClick={handleCloseModal}
+            disabled={signing}
+            className="!bg-white !text-gray-700 !ring-gray-300 hover:!bg-gray-50 dark:!bg-white dark:!text-gray-700 dark:!ring-gray-300 dark:hover:!bg-gray-50"
+          >
             Annuler
           </Button>
-          <Button onClick={handleConfirmSignature} disabled={signing}>
+          <Button onClick={handleConfirmSignature} disabled={signing || !acceptedTerms}>
             {signing ? "Signature..." : "Je signe"}
           </Button>
         </div>
@@ -188,34 +217,60 @@ export default function ContractSignPage() {
         </header>
 
         <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-theme-sm">
-          <h2 className="text-base font-semibold text-gray-900">Récapitulatif du contrat</h2>
+          <h2 className="text-base font-semibold text-gray-900">Informations client</h2>
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             <div>
-              <p className="text-xs font-semibold uppercase text-gray-500">Client</p>
+              <p className="text-xs font-semibold uppercase text-gray-500">Nom complet</p>
               <p className="mt-1 text-sm text-gray-800">{customerName}</p>
-              <p className="text-xs text-gray-500">{contract.customer_email}</p>
-              <p className="text-xs text-gray-500">{contract.customer_phone}</p>
             </div>
             <div>
-              <p className="text-xs font-semibold uppercase text-gray-500">Période</p>
+              <p className="text-xs font-semibold uppercase text-gray-500">Email</p>
+              <p className="mt-1 text-sm text-gray-800">{contract.customer_email || "-"}</p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase text-gray-500">Téléphone</p>
+              <p className="mt-1 text-sm text-gray-800">{contract.customer_phone || "-"}</p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase text-gray-500">Adresse</p>
+              <p className="mt-1 text-sm text-gray-800">{contract.customer_address || "-"}</p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase text-gray-500">Ville</p>
+              <p className="mt-1 text-sm text-gray-800">{contract.customer_city || "-"}</p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase text-gray-500">Code postal</p>
+              <p className="mt-1 text-sm text-gray-800">{contract.customer_postal_code || "-"}</p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase text-gray-500">Pays</p>
+              <p className="mt-1 text-sm text-gray-800">{contract.customer_country || "-"}</p>
+            </div>
+            {contract.customer_birthday && (
+              <div>
+                <p className="text-xs font-semibold uppercase text-gray-500">Date de naissance</p>
+                <p className="mt-1 text-sm text-gray-800">{formatDate(contract.customer_birthday)}</p>
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-theme-sm">
+          <h2 className="text-base font-semibold text-gray-900">Détails du contrat</h2>
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <div>
+              <p className="text-xs font-semibold uppercase text-gray-500">Type de contrat</p>
+              <p className="mt-1 text-sm text-gray-800">{contract.contract_type?.name || "-"}</p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase text-gray-500">Période de location</p>
               <p className="mt-1 text-sm text-gray-800">
-                {formatDate(contract.start_datetime)} — {formatDate(contract.end_datetime)}
+                {formatDateTime(contract.start_datetime)} — {formatDateTime(contract.end_datetime)}
               </p>
             </div>
             <div>
-              <p className="text-xs font-semibold uppercase text-gray-500">Montant TTC</p>
-              <p className="mt-1 text-sm text-gray-800">{formatCurrency(contract.total_price_ttc)}</p>
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase text-gray-500">Acompte TTC</p>
-              <p className="mt-1 text-sm text-gray-800">{formatCurrency(contract.account_ttc)}</p>
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase text-gray-500">Caution TTC</p>
-              <p className="mt-1 text-sm text-gray-800">{formatCurrency(contract.caution_ttc)}</p>
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase text-gray-500">Méthode de paiement</p>
+              <p className="text-xs font-semibold uppercase text-gray-500">Méthode de paiement caution</p>
               <p className="mt-1 text-sm text-gray-800">
                 {(contract.deposit_payment_method ?? "").toLowerCase() === "cash"
                   ? "Espèces"
@@ -224,18 +279,157 @@ export default function ContractSignPage() {
                   : "-"}
               </p>
             </div>
+            <div>
+              <p className="text-xs font-semibold uppercase text-gray-500">Date de création</p>
+              <p className="mt-1 text-sm text-gray-800">{formatDateTime(contract.created_at)}</p>
+            </div>
+          </div>
+        </section>
+
+        {contract.package && (
+          <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-theme-sm">
+            <h2 className="text-base font-semibold text-gray-900">Forfait</h2>
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <div>
+                <p className="text-xs font-semibold uppercase text-gray-500">Nom du forfait</p>
+                <p className="mt-1 text-sm text-gray-800">{contract.package.name}</p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase text-gray-500">Nombre de robes incluses</p>
+                <p className="mt-1 text-sm text-gray-800">
+                  {contract.package.num_dresses ?? "-"} {contract.package.num_dresses && contract.package.num_dresses > 1 ? "robes" : contract.package.num_dresses === 1 ? "robe" : ""}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase text-gray-500">Prix HT</p>
+                <p className="mt-1 text-sm text-gray-800">{formatCurrency(contract.package.price_ht)}</p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase text-gray-500">Prix TTC</p>
+                <p className="mt-1 text-sm text-gray-800">{formatCurrency(contract.package.price_ttc)}</p>
+              </div>
+            </div>
+          </section>
+        )}
+
+        <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-theme-sm">
+          <h2 className="text-base font-semibold text-gray-900">Récapitulatif financier</h2>
+          <div className="mt-4 space-y-6">
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 mb-3">Montant total</h3>
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="rounded-lg bg-gray-50 p-3">
+                  <p className="text-xs font-semibold uppercase text-gray-500">Total HT</p>
+                  <p className="mt-1 text-lg font-semibold text-gray-900">{formatCurrency(contract.total_price_ht)}</p>
+                </div>
+                <div className="rounded-lg bg-brand-50 p-3">
+                  <p className="text-xs font-semibold uppercase text-gray-500">Total TTC</p>
+                  <p className="mt-1 text-lg font-semibold text-brand-700">{formatCurrency(contract.total_price_ttc)}</p>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 mb-3">Acompte</h3>
+              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+                <div className="rounded-lg bg-gray-50 p-3">
+                  <p className="text-xs font-semibold uppercase text-gray-500">Acompte HT</p>
+                  <p className="mt-1 text-sm font-semibold text-gray-900">{formatCurrency(contract.account_ht)}</p>
+                </div>
+                <div className="rounded-lg bg-gray-50 p-3">
+                  <p className="text-xs font-semibold uppercase text-gray-500">Acompte TTC</p>
+                  <p className="mt-1 text-sm font-semibold text-gray-900">{formatCurrency(contract.account_ttc)}</p>
+                </div>
+                <div className="rounded-lg bg-success-50 p-3">
+                  <p className="text-xs font-semibold uppercase text-gray-500">Payé HT</p>
+                  <p className="mt-1 text-sm font-semibold text-success-700">{formatCurrency(contract.account_paid_ht)}</p>
+                </div>
+                <div className="rounded-lg bg-success-50 p-3">
+                  <p className="text-xs font-semibold uppercase text-gray-500">Payé TTC</p>
+                  <p className="mt-1 text-sm font-semibold text-success-700">{formatCurrency(contract.account_paid_ttc)}</p>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 mb-3">Caution</h3>
+              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+                <div className="rounded-lg bg-gray-50 p-3">
+                  <p className="text-xs font-semibold uppercase text-gray-500">Caution HT</p>
+                  <p className="mt-1 text-sm font-semibold text-gray-900">{formatCurrency(contract.caution_ht)}</p>
+                </div>
+                <div className="rounded-lg bg-gray-50 p-3">
+                  <p className="text-xs font-semibold uppercase text-gray-500">Caution TTC</p>
+                  <p className="mt-1 text-sm font-semibold text-gray-900">{formatCurrency(contract.caution_ttc)}</p>
+                </div>
+                <div className="rounded-lg bg-success-50 p-3">
+                  <p className="text-xs font-semibold uppercase text-gray-500">Payée HT</p>
+                  <p className="mt-1 text-sm font-semibold text-success-700">{formatCurrency(contract.caution_paid_ht)}</p>
+                </div>
+                <div className="rounded-lg bg-success-50 p-3">
+                  <p className="text-xs font-semibold uppercase text-gray-500">Payée TTC</p>
+                  <p className="mt-1 text-sm font-semibold text-success-700">{formatCurrency(contract.caution_paid_ttc)}</p>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 
         {dresses.length ? (
           <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-theme-sm">
-            <h2 className="text-base font-semibold text-gray-900">Robes incluses</h2>
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <h2 className="text-base font-semibold text-gray-900">Robes incluses ({dresses.length})</h2>
+            <div className="mt-4 space-y-4">
               {dresses.map((dress) => (
-                <div key={dress.id ?? dress.reference} className="rounded-xl border border-gray-100 bg-gray-50/60 p-4">
-                  <p className="font-medium text-gray-900">{dress.name ?? "Robe"}</p>
-                  <p className="text-xs text-gray-500">Réf. {dress.reference ?? "-"}</p>
-                  <p className="text-xs text-gray-500">Prix journée TTC : {formatCurrency(dress.price_per_day_ttc)}</p>
+                <div
+                  key={dress.id ?? dress.reference}
+                  className="flex flex-col gap-4 rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03] sm:flex-row sm:items-start sm:gap-6"
+                >
+                  {dress.images && dress.images.length > 0 && (
+                    <div className="flex-shrink-0 overflow-hidden rounded-lg sm:w-32 sm:h-32">
+                      <img
+                        src={dress.images[0]}
+                        alt={dress.name ?? "Robe"}
+                        className="h-full w-full object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = "none";
+                        }}
+                      />
+                    </div>
+                  )}
+                  <div className="flex-1">
+                    <h4 className="mb-1 font-medium text-gray-800 text-lg dark:text-white/90">
+                      {dress.name ?? "Robe"}
+                    </h4>
+                    <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">
+                      Réf. {dress.reference ?? "-"}
+                    </p>
+                    <div className="grid grid-cols-2 gap-2 text-sm text-gray-500 dark:text-gray-400">
+                      {dress.type_name && (
+                        <div>
+                          <span className="font-medium">Type:</span>
+                          <span className="ml-1">{dress.type_name}</span>
+                        </div>
+                      )}
+                      {dress.size_name && (
+                        <div>
+                          <span className="font-medium">Taille:</span>
+                          <span className="ml-1">{dress.size_name}</span>
+                        </div>
+                      )}
+                      {dress.color_name && (
+                        <div>
+                          <span className="font-medium">Couleur:</span>
+                          <span className="ml-1">{dress.color_name}</span>
+                        </div>
+                      )}
+                      {dress.condition_name && (
+                        <div>
+                          <span className="font-medium">État:</span>
+                          <span className="ml-1">{dress.condition_name}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
