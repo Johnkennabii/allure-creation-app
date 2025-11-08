@@ -568,7 +568,6 @@ export default function Customers() {
   const [users, setUsers] = useState<UserListItem[]>([]);
   const [generatedPdfContracts, setGeneratedPdfContracts] = useState<Set<string>>(new Set());
   const [uploadingSignedPdfId, setUploadingSignedPdfId] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { notify } = useNotification();
   const { hasRole } = useAuth();
