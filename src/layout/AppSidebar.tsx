@@ -90,6 +90,7 @@ const navItems: NavItem[] = [
     icon: <UserCircleIcon />,
     name: "Utilisateur",
     path: "/users/list",
+    requiredRoles: ["ADMIN", "MANAGER"],
   },
   {
     icon: <UserCircleIcon />,

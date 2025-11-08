@@ -336,7 +336,7 @@ const ColorSwatch = ({ hex, name }: { hex?: string | null; name?: string | null 
 export default function Catalogue() {
   const { notify } = useNotification();
   const { hasRole } = useAuth();
-  const canManage = hasRole("ADMIN", "MANAGER");
+  const canManage = hasRole("ADMIN", "MANAGER", "COLLABORATOR");
   const isAdmin = hasRole("ADMIN");
   const navigate = useNavigate();
   const location = useLocation();
