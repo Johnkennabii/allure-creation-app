@@ -24,6 +24,7 @@ import { PencilIcon, CloseLineIcon, TrashBinIcon } from "../../icons";
 import { IoEyeOutline } from "react-icons/io5";
 import DatePicker from "../../components/form/date-picker";
 import type { QuickSearchNavigationPayload } from "../../types/quickSearch";
+import { io } from "socket.io-client";
 
 const DEFAULT_VAT_RATIO = 0.8333333333;
 
@@ -648,12 +649,13 @@ export default function Customers() {
 
   const customers: CustomerRow[] = useMemo(() => customerData.data.map(toCustomerRow), [customerData.data]);
 
-  // Écouter les notifications de contrats signés pour mettre à jour automatiquement
+  // Écouter les notifications Socket.IO pour mettre à jour les contrats en temps réel
   useEffect(() => {
-    const handleContractSigned = (event: Event) => {
-      const customEvent = event as CustomEvent;
-      const notification = customEvent.detail;
+    const socket = io("https://api.allure-creation.fr", {
+      transports: ["websocket"],
+    });
 
+    socket.on("notification", (notification: any) => {
       if (notification.type === "CONTRACT_SIGNED" && notification.contractId) {
         // Mettre à jour le contrat dans la liste viewContracts si présent
         setViewContracts((prev) =>
@@ -667,13 +669,14 @@ export default function Customers() {
               : contract
           )
         );
-        console.log(`✅ Contrat ${notification.contractNumber} mis à jour automatiquement: statut = SIGNED`);
+        console.log(
+          `✅ Contrat ${notification.contractNumber} mis à jour automatiquement: statut = SIGNED`
+        );
       }
-    };
+    });
 
-    window.addEventListener("socket-notification", handleContractSigned);
     return () => {
-      window.removeEventListener("socket-notification", handleContractSigned);
+      socket.disconnect();
     };
   }, []);
 
