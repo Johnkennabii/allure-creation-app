@@ -2447,7 +2447,7 @@ export default function Catalogue() {
 
   return (
     <div className="space-y-6">
-      <PageMeta title="Catalogue" description=""/>
+      <PageMeta title="Catalogue" description="Gestion des robes."/>
       <PageBreadcrumb pageTitle="Catalogue" />
 
       <div className="rounded-2xl border border-gray-200 bg-white px-5 py-6 shadow-theme-xs transition dark:border-white/10 dark:bg-white/[0.03] xl:px-10 xl:py-10">

@@ -625,7 +625,7 @@ export default function Customers() {
   const canHardDelete = hasRole("ADMIN");
   const createBirthdayId = "create-customer-birthday";
   const editBirthdayId = "edit-customer-birthday";
-  const canGeneratePDF = hasRole("ADMIN") || hasRole("MANAGER");
+  const canGeneratePDF = hasRole("ADMIN") || hasRole("MANAGER") || hasRole("COLLABORATOR");
   
 
   const totalPages = useMemo(

@@ -1,173 +1,196 @@
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { MoreDotIcon } from "../../icons";
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
+import SpinnerOne from "../ui/spinner/SpinnerOne";
+import {
+  NotificationsAPI,
+  type NotificationData,
+} from "../../api/endpoints/notifications";
+
+const TYPE_META: Record<
+  NotificationData["type"],
+  {
+    label: string;
+    dotClass: string;
+    pillClass: string;
+  }
+> = {
+  CONTRACT_SIGNED: {
+    label: "Contrat signé",
+    dotClass: "border-primary-500 bg-primary-50 text-primary-600",
+    pillClass: "bg-primary-50 text-primary-600 dark:bg-primary-500/10 dark:text-primary-200",
+  },
+  DRESS_CREATED: {
+    label: "Nouvelle robe",
+    dotClass: "border-success-500 bg-success-50 text-success-600",
+    pillClass: "bg-success-50 text-success-600 dark:bg-success-500/10 dark:text-success-200",
+  },
+};
+
+const relativeTimeFromNow = (timestamp: string) => {
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return "-";
+  const diffMs = Date.now() - date.getTime();
+  const diffMinutes = Math.floor(diffMs / 60000);
+  if (diffMinutes < 1) return "À l'instant";
+  if (diffMinutes < 60) return `${diffMinutes} min`;
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours} h`;
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 30) return `${diffDays} j`;
+  const diffMonths = Math.floor(diffDays / 30);
+  if (diffMonths < 12) return `${diffMonths} mois`;
+  const diffYears = Math.floor(diffMonths / 12);
+  return `${diffYears} an${diffYears > 1 ? "s" : ""}`;
+};
 
 export default function ActivitiesCard() {
-  const [isOpen, setIsOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [notifications, setNotifications] = useState<NotificationData[]>([]);
+  const [marking, setMarking] = useState(false);
+  const [unseenCount, setUnseenCount] = useState(0);
 
-  function toggleDropdown() {
-    setIsOpen(!isOpen);
-  }
+  const fetchNotifications = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [data, unseen] = await Promise.all([
+        NotificationsAPI.getAll(),
+        NotificationsAPI.getUnseenCount(),
+      ]);
+      setNotifications(data);
+      setUnseenCount(unseen);
+    } catch (error) {
+      console.error("Impossible de charger les notifications :", error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  function closeDropdown() {
-    setIsOpen(false);
-  }
+  useEffect(() => {
+    void fetchNotifications();
+  }, [fetchNotifications]);
+
+  const markAllAsRead = async () => {
+    if (!notifications.length) return;
+    setMarking(true);
+    try {
+      const unseen = notifications.filter((notif) => {
+        if (Array.isArray(notif.users) && notif.users.length) {
+          return notif.users.some((user) => !user.seen);
+        }
+        return !notif.seen;
+      });
+      await Promise.all(unseen.map((notif) => NotificationsAPI.markAsSeen(notif.id)));
+      setUnseenCount(0);
+      await fetchNotifications();
+    } catch (error) {
+      console.error("Erreur lors du marquage des notifications :", error);
+    } finally {
+      setMarking(false);
+      setMenuOpen(false);
+    }
+  };
+
+  const activities = useMemo(() => notifications.slice(0, 6), [notifications]);
+
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-white/[0.03]">
       <div className="mb-6 flex justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">
-            Activities
-          </h3>
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">Notifications</h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            {loading ? "Chargement..." : unseenCount ? `${unseenCount} non lues` : "Toutes lues"}
+          </p>
         </div>
         <div className="relative inline-block">
-          <button className="dropdown-toggle" onClick={toggleDropdown}>
+          <button className="dropdown-toggle" onClick={() => setMenuOpen((prev) => !prev)}>
             <MoreDotIcon className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 size-6" />
           </button>
-          <Dropdown
-            isOpen={isOpen}
-            onClose={closeDropdown}
-            className="w-40 p-2"
-          >
+          <Dropdown isOpen={menuOpen} onClose={() => setMenuOpen(false)} className="w-52 p-2">
             <DropdownItem
-              onItemClick={closeDropdown}
+              onItemClick={() => {
+                setMenuOpen(false);
+                void fetchNotifications();
+              }}
               className="flex w-full font-normal text-left text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
             >
-              View More
+              Rafraîchir
             </DropdownItem>
             <DropdownItem
-              onItemClick={closeDropdown}
-              className="flex w-full font-normal text-left text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+              onItemClick={() => {
+                if (marking || unseenCount === 0) return;
+                void markAllAsRead();
+              }}
+              className={`flex w-full font-normal text-left rounded-lg ${
+                marking || unseenCount === 0
+                  ? "cursor-not-allowed text-gray-400 dark:text-gray-500"
+                  : "text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+              }`}
             >
-              Delete
+              {marking ? "Marquage..." : "Tout marquer comme lu"}
             </DropdownItem>
           </Dropdown>
         </div>
       </div>
+
       <div className="relative">
-        {/* <!-- Timeline line --> */}
-        <div className="absolute top-6 bottom-10 left-5 w-px bg-gray-200 dark:bg-gray-800"></div>
-
-        {/* <!-- Francisco Grbbs --> */}
-        <div className="relative mb-6 flex">
-          <div className="z-10 flex-shrink-0">
-            <img
-              src="./images/user/user-01.jpg"
-              alt="Francisco Grbbs"
-              className="size-10 rounded-full object-cover ring-4 ring-white dark:ring-gray-800"
-            />
+        <div className="absolute top-6 bottom-6 left-[22px] w-px bg-gray-200 dark:bg-gray-800" />
+        {loading ? (
+          <div className="relative flex items-center justify-center py-12">
+            <SpinnerOne />
           </div>
-          <div className="ml-4">
-            <div className="mb-1 flex items-center gap-1">
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 18 18"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M9 5.0625H14.0625L12.5827 8.35084C12.4506 8.64443 12.4506 8.98057 12.5827 9.27416L14.0625 12.5625H10.125C9.50368 12.5625 9 12.0588 9 11.4375V10.875M3.9375 10.875H9M3.9375 3.375H7.875C8.49632 3.375 9 3.87868 9 4.5V10.875M3.9375 15.9375V2.0625"
-                  stroke="#12B76A"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              <p className="text-theme-xs text-success-500 font-medium">
-                New invoice
-              </p>
-            </div>
-            <div className="flex items-baseline">
-              <h3 className="text-theme-sm font-medium text-gray-800 dark:text-white/90">
-                Francisco Grbbs
-              </h3>
-              <span className="text-theme-sm ml-2 font-normal text-gray-500 dark:text-gray-400">
-                created invoice
-              </span>
-            </div>
-            <p className="text-theme-sm font-normal text-gray-500 dark:text-gray-400">
-              PQ-4491C
+        ) : activities.length === 0 ? (
+          <div className="relative flex flex-col items-center justify-center py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+            <p>Aucune notification disponible.</p>
+            <p className="text-xs mt-1 text-gray-400 dark:text-gray-500">
+              Les actions notifiées (création, signature, etc.) apparaîtront ici.
             </p>
-            <p className="text-theme-xs mt-1 text-gray-400">Just Now</p>
           </div>
-        </div>
-
-        {/* <!-- Courtney Henry --> */}
-        <div className="relative mb-6 flex">
-          <div className="z-10 flex-shrink-0">
-            <img
-              src="./images/user/user-03.jpg"
-              alt="Courtney Henry"
-              className="size-10 rounded-full object-cover ring-4 ring-white dark:ring-gray-800"
-            />
+        ) : (
+          <div className="space-y-6">
+            {activities.map((activity) => {
+              const meta = TYPE_META[activity.type];
+              return (
+                <div key={activity.id} className="relative flex items-start gap-4">
+                  <div
+                    className={`relative z-10 flex size-11 items-center justify-center rounded-full border-2 ${
+                      meta?.dotClass ?? "border-gray-300 bg-gray-50 text-gray-500"
+                    }`}
+                  >
+                    <span className="text-xs font-semibold uppercase">
+                      {activity.type.charAt(0)}
+                    </span>
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {meta ? (
+                        <span
+                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs ${
+                            meta.pillClass
+                          }`}
+                        >
+                          {meta.label}
+                        </span>
+                      ) : null}
+                      <p className="text-sm font-semibold text-gray-800 dark:text-white/90">{activity.title}</p>
+                    </div>
+                    <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{activity.message}</p>
+                    {activity.meta?.reference ? (
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Référence : {activity.meta.reference}
+                      </p>
+                    ) : null}
+                    <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                      {relativeTimeFromNow(activity.created_at)}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-          <div className="ml-4">
-            <div className="flex items-baseline">
-              <h3 className="text-theme-sm font-semibold text-gray-800 dark:text-white/90">
-                Courtney Henry
-              </h3>
-              <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">
-                created invoice
-              </span>
-            </div>
-            <p className="text-theme-sm font-normal text-gray-500 dark:text-gray-400">
-              HK-234G
-            </p>
-            <p className="text-theme-xs mt-1 text-gray-400">15 minutes ago</p>
-          </div>
-        </div>
-
-        {/* <!-- Bessie Cooper --> */}
-        <div className="relative mb-6 flex">
-          <div className="z-10 flex-shrink-0">
-            <img
-              src="./images/user/user-04.jpg"
-              alt="Bessie Cooper"
-              className="size-10 rounded-full object-cover ring-4 ring-white dark:ring-gray-800"
-            />
-          </div>
-          <div className="ml-4">
-            <div className="flex items-baseline">
-              <h3 className="text-theme-sm font-semibold text-gray-800 dark:text-white/90">
-                Bessie Cooper
-              </h3>
-              <span className="text-theme-sm ml-2 text-gray-500 dark:text-gray-400">
-                created invoice
-              </span>
-            </div>
-            <p className="text-theme-sm font-normal text-gray-500 dark:text-gray-400">
-              LH-2891C
-            </p>
-            <p className="text-theme-xs mt-1 text-gray-400">5 months ago</p>
-          </div>
-        </div>
-
-        {/* <!-- Theresa Web --> */}
-        <div className="relative flex">
-          <div className="z-10 flex-shrink-0">
-            <img
-              src="./images/user/user-05.jpg"
-              alt="Theresa Web"
-              className="size-10 rounded-full object-cover ring-4 ring-white dark:ring-gray-800"
-            />
-          </div>
-          <div className="ml-4">
-            <div className="flex items-baseline">
-              <h3 className="text-theme-sm font-semibold text-gray-800 dark:text-white/90">
-                Theresa Web
-              </h3>
-              <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">
-                created invoice
-              </span>
-            </div>
-            <p className="text-theme-sm font-normal text-gray-500 dark:text-gray-400">
-              CK-125NH
-            </p>
-            <p className="text-theme-xs mt-1 text-gray-400">2 weeks ago</p>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );

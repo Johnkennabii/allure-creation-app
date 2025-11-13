@@ -35,7 +35,7 @@ export default function WithIndicators({
   const modules = autoPlay ? [Pagination, Autoplay] : [Pagination];
 
   return (
-    <div className={clsx("relative carouselThree", className)}>
+    <div className={clsx("relative carouselThree w-full overflow-hidden", className)}>
       <Swiper
         modules={modules}
         autoplay={
@@ -48,13 +48,14 @@ export default function WithIndicators({
         }
         pagination={{ clickable: true }}
         loop={slides.length > 1}
+        className="w-full"
       >
         {slides.map((src, index) => (
-          <SwiperSlide key={`${src}-${index}`}>
+          <SwiperSlide key={`${src}-${index}`} className="w-full">
             <img
               src={src}
               alt={`Carousel slide ${index + 1}`}
-              className={clsx("block", imageClassName)}
+              className={clsx("block w-full", imageClassName)}
               loading="lazy"
             />
           </SwiperSlide>

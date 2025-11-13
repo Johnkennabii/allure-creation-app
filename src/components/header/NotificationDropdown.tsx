@@ -29,7 +29,9 @@ export default function NotificationDropdown() {
   const {
     notifications,
     unreadCount,
+    markAsRead,
     markAllAsRead,
+    clearNotification,
     clearAllNotifications,
   } = useSocketNotifications();
 
@@ -156,7 +158,15 @@ export default function NotificationDropdown() {
             notifications.map((notification: Notification) => (
               <li key={notification.id}>
                 <DropdownItem
-                  onItemClick={closeDropdown}
+                  onItemClick={() => {
+                    // Marquer comme lu si non lu
+                    if (!notification.read) {
+                      markAsRead(notification.id);
+                    }
+                    // Supprimer la notification de la liste
+                    clearNotification(notification.id);
+                    closeDropdown();
+                  }}
                   className="flex gap-3 rounded-lg border-b border-gray-100 p-3 px-4.5 py-3 hover:bg-gray-100 dark:border-gray-800 dark:hover:bg-white/5"
                 >
                   {getNotificationIcon(notification.type)}

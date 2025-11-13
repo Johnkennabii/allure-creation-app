@@ -74,8 +74,8 @@ export default function CardThree({
 
   return (
     <Card>
-      <div className="-mx-5 -mt-5 mb-5 sm:-mx-6 sm:-mt-6">
-        <div className="relative overflow-hidden rounded-t-xl">
+      <div className="-mx-5 -mt-5 mb-5 overflow-hidden sm:-mx-6 sm:-mt-6">
+        <div className="relative w-full overflow-hidden rounded-t-xl">
           <WithIndicators
             images={images}
             fallbackImage={fallbackImage}
@@ -91,13 +91,13 @@ export default function CardThree({
         </div>
       </div>
 
-      <div className={clsx("space-y-4", bodyClassName)}>
+      <div className={clsx("space-y-4 overflow-hidden", bodyClassName)}>
         {badges ? <div className="flex flex-wrap gap-2">{badges}</div> : null}
 
         <div className="space-y-2">
           <CardTitle>{title}</CardTitle>
           {subtitle ? (
-            <p className="text-sm font-medium text-gray-500 dark:text-gray-400">{subtitle}</p>
+            <p className="break-words text-sm font-medium text-gray-500 dark:text-gray-400">{subtitle}</p>
           ) : null}
           {hasDescription ? <CardDescription>{description}</CardDescription> : null}
         </div>
@@ -105,11 +105,11 @@ export default function CardThree({
         {hasInfoItems ? (
           <dl className="grid gap-x-6 gap-y-4 text-sm sm:grid-cols-2">
             {infoItems!.map((item) => (
-              <div key={item.label} className="flex flex-col gap-1">
+              <div key={item.label} className="flex flex-col gap-1 overflow-hidden">
                 <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                   {item.label}
                 </dt>
-                <dd className="text-sm text-gray-800 dark:text-gray-200">{item.value}</dd>
+                <dd className="break-words text-sm text-gray-800 dark:text-gray-200">{item.value}</dd>
               </div>
             ))}
           </dl>
