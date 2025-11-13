@@ -1,12 +1,38 @@
+import { useEffect, useState } from "react";
 import {
-  ArrowDownIcon,
-  ArrowUpIcon,
   BoxIconLine,
   GroupIcon,
 } from "../../icons";
-import Badge from "../ui/badge/Badge";
+import { CustomersAPI } from "../../api/endpoints/customers";
+import { DressesAPI } from "../../api/endpoints/dresses";
 
 export default function EcommerceMetrics() {
+  const [customersCount, setCustomersCount] = useState<number>(0);
+  const [dressesCount, setDressesCount] = useState<number>(0);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchMetrics = async () => {
+      try {
+        setIsLoading(true);
+
+        // Récupération du nombre de clients
+        const customersResponse = await CustomersAPI.list({ limit: 1, page: 1 });
+        setCustomersCount(customersResponse.total);
+
+        // Récupération du nombre de robes
+        const dressesResponse = await DressesAPI.list({ limit: 1, offset: 0 });
+        setDressesCount(dressesResponse.total);
+      } catch (error) {
+        console.error("Erreur lors de la récupération des métriques:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchMetrics();
+  }, []);
+
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:gap-6">
       {/* <!-- Metric Item Start --> */}
@@ -18,16 +44,16 @@ export default function EcommerceMetrics() {
         <div className="flex items-end justify-between mt-5">
           <div>
             <span className="text-sm text-gray-500 dark:text-gray-400">
-              Customers
+              Clients
             </span>
             <h4 className="mt-2 font-bold text-gray-800 text-title-sm dark:text-white/90">
-              3,782
+              {isLoading ? (
+                <span className="animate-pulse">...</span>
+              ) : (
+                customersCount.toLocaleString("fr-FR")
+              )}
             </h4>
           </div>
-          <Badge color="success">
-            <ArrowUpIcon />
-            11.01%
-          </Badge>
         </div>
       </div>
       {/* <!-- Metric Item End --> */}
@@ -40,17 +66,16 @@ export default function EcommerceMetrics() {
         <div className="flex items-end justify-between mt-5">
           <div>
             <span className="text-sm text-gray-500 dark:text-gray-400">
-              Orders
+              Robes
             </span>
             <h4 className="mt-2 font-bold text-gray-800 text-title-sm dark:text-white/90">
-              5,359
+              {isLoading ? (
+                <span className="animate-pulse">...</span>
+              ) : (
+                dressesCount.toLocaleString("fr-FR")
+              )}
             </h4>
           </div>
-
-          <Badge color="error">
-            <ArrowDownIcon />
-            9.05%
-          </Badge>
         </div>
       </div>
       {/* <!-- Metric Item End --> */}

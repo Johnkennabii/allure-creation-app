@@ -1,11 +1,53 @@
+import { useEffect, useState } from "react";
 import Chart from "react-apexcharts";
 import { ApexOptions } from "apexcharts";
-import { Dropdown } from "../ui/dropdown/Dropdown";
-import { DropdownItem } from "../ui/dropdown/DropdownItem";
-import { MoreDotIcon } from "../../icons";
-import { useState } from "react";
+import { ContractsAPI } from "../../api/endpoints/contracts";
 
 export default function MonthlySalesChart() {
+  const [monthlyData, setMonthlyData] = useState<number[]>(Array(12).fill(0));
+  const [isLoading, setIsLoading] = useState(true);
+  const [currentYear] = useState(new Date().getFullYear());
+
+  useEffect(() => {
+    const fetchContractsData = async () => {
+      try {
+        setIsLoading(true);
+
+        // Récupération de tous les contrats
+        const contracts = await ContractsAPI.listAll();
+
+        // Initialiser un tableau pour les 12 mois
+        const monthlySales = Array(12).fill(0);
+
+        // Calculer les sommes par mois
+        contracts.forEach((contract) => {
+          // On utilise la date de début du contrat pour déterminer le mois
+          const contractDate = new Date(contract.start_datetime);
+          const contractYear = contractDate.getFullYear();
+          const contractMonth = contractDate.getMonth(); // 0-11
+
+          // On ne compte que les contrats de l'année en cours
+          if (contractYear === currentYear) {
+            // Convertir le prix TTC en nombre
+            const priceTTC = typeof contract.total_price_ttc === 'string'
+              ? parseFloat(contract.total_price_ttc)
+              : Number(contract.total_price_ttc || 0);
+
+            monthlySales[contractMonth] += priceTTC;
+          }
+        });
+
+        setMonthlyData(monthlySales);
+      } catch (error) {
+        console.error("Erreur lors de la récupération des données de contrats:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchContractsData();
+  }, [currentYear]);
+
   const options: ApexOptions = {
     colors: ["#465fff"],
     chart: {
@@ -35,17 +77,17 @@ export default function MonthlySalesChart() {
     xaxis: {
       categories: [
         "Jan",
-        "Feb",
+        "Fév",
         "Mar",
-        "Apr",
-        "May",
-        "Jun",
-        "Jul",
-        "Aug",
+        "Avr",
+        "Mai",
+        "Juin",
+        "Juil",
+        "Août",
         "Sep",
         "Oct",
         "Nov",
-        "Dec",
+        "Déc",
       ],
       axisBorder: {
         show: false,
@@ -64,6 +106,9 @@ export default function MonthlySalesChart() {
       title: {
         text: undefined,
       },
+      labels: {
+        formatter: (val: number) => `${Math.round(val)}€`,
+      },
     },
     grid: {
       yaxis: {
@@ -75,60 +120,37 @@ export default function MonthlySalesChart() {
     fill: {
       opacity: 1,
     },
-
     tooltip: {
       x: {
-        show: false,
+        show: true,
       },
       y: {
-        formatter: (val: number) => `${val}`,
+        formatter: (val: number) => `${val.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`,
+        title: {
+          formatter: () => "Chiffre d'affaires TTC:",
+        },
       },
     },
   };
+
   const series = [
     {
-      name: "Sales",
-      data: [168, 385, 201, 298, 187, 195, 291, 110, 215, 390, 280, 112],
+      name: "CA TTC",
+      data: monthlyData,
     },
   ];
-  const [isOpen, setIsOpen] = useState(false);
 
-  function toggleDropdown() {
-    setIsOpen(!isOpen);
-  }
-
-  function closeDropdown() {
-    setIsOpen(false);
-  }
   return (
     <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white px-5 pt-5 dark:border-gray-800 dark:bg-white/[0.03] sm:px-6 sm:pt-6">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">
-          Monthly Sales
+          Chiffre d'affaires mensuels {currentYear}
         </h3>
-        <div className="relative inline-block">
-          <button className="dropdown-toggle" onClick={toggleDropdown}>
-            <MoreDotIcon className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 size-6" />
-          </button>
-          <Dropdown
-            isOpen={isOpen}
-            onClose={closeDropdown}
-            className="w-40 p-2"
-          >
-            <DropdownItem
-              onItemClick={closeDropdown}
-              className="flex w-full font-normal text-left text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
-            >
-              View More
-            </DropdownItem>
-            <DropdownItem
-              onItemClick={closeDropdown}
-              className="flex w-full font-normal text-left text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
-            >
-              Delete
-            </DropdownItem>
-          </Dropdown>
-        </div>
+        {isLoading && (
+          <span className="text-sm text-gray-500 dark:text-gray-400 animate-pulse">
+            Chargement...
+          </span>
+        )}
       </div>
 
       <div className="max-w-full overflow-x-auto custom-scrollbar">

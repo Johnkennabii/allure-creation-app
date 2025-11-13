@@ -1,10 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
-import {
-  useSocketNotifications,
-  type Notification,
-} from "../../hooks/useSocketNotifications";
+import { NotificationsAPI, NotificationData } from "../../api/endpoints/notifications";
 
 function formatTimeAgo(timestamp: string): string {
   const now = new Date();
@@ -26,14 +23,34 @@ function formatTimeAgo(timestamp: string): string {
 
 export default function NotificationDropdown() {
   const [isOpen, setIsOpen] = useState(false);
-  const {
-    notifications,
-    unreadCount,
-    markAsRead,
-    markAllAsRead,
-    clearNotification,
-    clearAllNotifications,
-  } = useSocketNotifications();
+  const [notifications, setNotifications] = useState<NotificationData[]>([]);
+  const [unseenCount, setUnseenCount] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Charger les notifications
+  const fetchNotifications = async () => {
+    try {
+      setIsLoading(true);
+      const [notifs, count] = await Promise.all([
+        NotificationsAPI.list(),
+        NotificationsAPI.getUnseenCount(),
+      ]);
+      setNotifications(notifs);
+      setUnseenCount(count);
+    } catch (error) {
+      console.error("Erreur lors du chargement des notifications:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchNotifications();
+
+    // Rafraîchir toutes les 30 secondes
+    const interval = setInterval(fetchNotifications, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   function toggleDropdown() {
     setIsOpen(!isOpen);
@@ -44,9 +61,30 @@ export default function NotificationDropdown() {
   }
 
   const handleClick = () => {
+    // Simplement ouvrir/fermer le dropdown sans marquer comme lu
     toggleDropdown();
-    if (unreadCount > 0) {
-      markAllAsRead();
+  };
+
+  const handleNotificationClick = async (notificationId: string, isSeen: boolean) => {
+    // Marquer comme vue uniquement si elle ne l'est pas déjà
+    if (!isSeen) {
+      try {
+        await NotificationsAPI.markAsSeen(notificationId);
+        await fetchNotifications();
+      } catch (error) {
+        console.error("Erreur lors du marquage de la notification:", error);
+      }
+    }
+    closeDropdown();
+  };
+
+  const handleMarkAllAsRead = async () => {
+    try {
+      await NotificationsAPI.markAllAsSeen();
+      await fetchNotifications();
+      closeDropdown();
+    } catch (error) {
+      console.error("Erreur lors du marquage de toutes les notifications:", error);
     }
   };
 
@@ -98,7 +136,7 @@ export default function NotificationDropdown() {
         className="relative flex items-center justify-center text-gray-500 transition-colors bg-white border border-gray-200 rounded-full dropdown-toggle hover:text-gray-700 h-11 w-11 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
         onClick={handleClick}
       >
-        {unreadCount > 0 && (
+        {unseenCount > 0 && (
           <span className="absolute right-0 top-0.5 z-10 h-2 w-2 rounded-full bg-orange-400 flex">
             <span className="absolute inline-flex w-full h-full bg-orange-400 rounded-full opacity-75 animate-ping"></span>
           </span>
@@ -148,34 +186,37 @@ export default function NotificationDropdown() {
           </button>
         </div>
         <ul className="flex flex-col h-auto overflow-y-auto custom-scrollbar">
-          {notifications.length === 0 ? (
+          {isLoading ? (
+            <li className="flex items-center justify-center py-8">
+              <p className="text-sm text-gray-500 dark:text-gray-400 animate-pulse">
+                Chargement...
+              </p>
+            </li>
+          ) : notifications.length === 0 ? (
             <li className="flex items-center justify-center py-8">
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 Aucune notification
               </p>
             </li>
           ) : (
-            notifications.map((notification: Notification) => (
+            notifications.map((notification: NotificationData) => (
               <li key={notification.id}>
                 <DropdownItem
-                  onItemClick={() => {
-                    // Marquer comme lu si non lu
-                    if (!notification.read) {
-                      markAsRead(notification.id);
-                    }
-                    // Supprimer la notification de la liste
-                    clearNotification(notification.id);
-                    closeDropdown();
-                  }}
-                  className="flex gap-3 rounded-lg border-b border-gray-100 p-3 px-4.5 py-3 hover:bg-gray-100 dark:border-gray-800 dark:hover:bg-white/5"
+                  onItemClick={() => handleNotificationClick(notification.id, notification.seen)}
+                  className={`flex gap-3 rounded-lg border-b border-gray-100 p-3 px-4.5 py-3 hover:bg-gray-100 dark:border-gray-800 dark:hover:bg-white/5 ${
+                    !notification.seen ? "bg-blue-50/50 dark:bg-blue-900/10" : ""
+                  }`}
                 >
                   {getNotificationIcon(notification.type)}
 
                   <span className="flex-1 block">
-                    <span className="mb-1.5 block text-theme-sm">
+                    <span className="mb-1.5 flex items-center gap-2 text-theme-sm">
                       <span className="font-medium text-gray-800 dark:text-white/90">
                         {notification.title}
                       </span>
+                      {!notification.seen && (
+                        <span className="inline-block w-2 h-2 bg-orange-400 rounded-full"></span>
+                      )}
                     </span>
 
                     <span className="mb-2 block text-theme-sm text-gray-500 dark:text-gray-400">
@@ -184,17 +225,17 @@ export default function NotificationDropdown() {
 
                     {/* Additional info for dress creation */}
                     {notification.type === "DRESS_CREATED" &&
-                      notification.reference && (
+                      notification.meta.reference && (
                         <span className="mb-1 block text-theme-xs text-gray-600 dark:text-gray-400">
                           <span className="font-medium">Référence:</span>{" "}
-                          {notification.reference}
-                          {notification.creator?.firstName &&
-                            notification.creator?.lastName && (
+                          {notification.meta.reference}
+                          {notification.meta.creator?.firstName &&
+                            notification.meta.creator?.lastName && (
                               <>
                                 {" • "}
                                 <span className="font-medium">Créé par:</span>{" "}
-                                {notification.creator.firstName}{" "}
-                                {notification.creator.lastName}
+                                {notification.meta.creator.firstName}{" "}
+                                {notification.meta.creator.lastName}
                               </>
                             )}
                         </span>
@@ -202,19 +243,17 @@ export default function NotificationDropdown() {
 
                     {/* Additional info for contract signing */}
                     {notification.type === "CONTRACT_SIGNED" &&
-                      notification.contractNumber && (
+                      notification.meta.contractNumber && (
                         <span className="mb-1 block text-theme-xs text-gray-600 dark:text-gray-400">
                           <span className="font-medium">N° Contrat:</span>{" "}
-                          {notification.contractNumber}
-                          {notification.customer?.firstName &&
-                            notification.customer?.lastName && (
-                              <>
-                                {" • "}
-                                <span className="font-medium">Client:</span>{" "}
-                                {notification.customer.firstName}{" "}
-                                {notification.customer.lastName}
-                              </>
-                            )}
+                          {notification.meta.contractNumber}
+                          {notification.meta.customer?.fullName && (
+                            <>
+                              {" • "}
+                              <span className="font-medium">Client:</span>{" "}
+                              {notification.meta.customer.fullName}
+                            </>
+                          )}
                         </span>
                       )}
 
@@ -225,7 +264,7 @@ export default function NotificationDropdown() {
                           : "Catalogue"}
                       </span>
                       <span className="w-1 h-1 bg-gray-400 rounded-full"></span>
-                      <span>{formatTimeAgo(notification.timestamp)}</span>
+                      <span>{formatTimeAgo(notification.meta.timestamp)}</span>
                     </span>
                   </span>
                 </DropdownItem>
@@ -233,15 +272,12 @@ export default function NotificationDropdown() {
             ))
           )}
         </ul>
-        {notifications.length > 0 && (
+        {notifications.length > 0 && unseenCount > 0 && (
           <button
-            onClick={() => {
-              clearAllNotifications();
-              closeDropdown();
-            }}
+            onClick={handleMarkAllAsRead}
             className="block w-full px-4 py-2 mt-3 text-sm font-medium text-center text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
           >
-            Effacer toutes les notifications
+            Marquer tout comme lu ({unseenCount})
           </button>
         )}
       </Dropdown>
