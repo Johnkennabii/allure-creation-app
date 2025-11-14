@@ -65,11 +65,22 @@ export default function ActivitiesCard() {
   }
 
   const getTimeAgo = (timestamp: string): string => {
+    if (!timestamp) return "Date inconnue";
+
     const now = new Date();
     const notifDate = new Date(timestamp);
+
+    // Vérifier si la date est valide
+    if (isNaN(notifDate.getTime())) {
+      return "Date invalide";
+    }
+
     const diffInSeconds = Math.floor((now.getTime() - notifDate.getTime()) / 1000);
 
+    // Gérer les dates futures ou invalides
+    if (diffInSeconds < 0) return "À l'instant";
     if (diffInSeconds < 60) return "À l'instant";
+
     if (diffInSeconds < 3600) {
       const minutes = Math.floor(diffInSeconds / 60);
       return `Il y a ${minutes} minute${minutes > 1 ? "s" : ""}`;
@@ -218,7 +229,7 @@ export default function ActivitiesCard() {
                       {notif.message}
                     </p>
                     <p className="text-theme-xs mt-1 text-gray-400">
-                      {getTimeAgo(notif.meta.timestamp)}
+                      {getTimeAgo(notif.meta.timestamp || notif.created_at)}
                     </p>
                   </div>
                 </div>

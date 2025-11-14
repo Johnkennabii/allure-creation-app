@@ -4,11 +4,22 @@ import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import { NotificationsAPI, NotificationData } from "../../api/endpoints/notifications";
 
 function formatTimeAgo(timestamp: string): string {
+  if (!timestamp) return "Date inconnue";
+
   const now = new Date();
   const date = new Date(timestamp);
+
+  // Vérifier si la date est valide
+  if (isNaN(date.getTime())) {
+    return "Date invalide";
+  }
+
   const secondsAgo = Math.floor((now.getTime() - date.getTime()) / 1000);
 
+  // Gérer les dates futures ou invalides
+  if (secondsAgo < 0) return "il y a quelques secondes";
   if (secondsAgo < 60) return "il y a quelques secondes";
+
   if (secondsAgo < 3600) {
     const minutes = Math.floor(secondsAgo / 60);
     return `il y a ${minutes} minute${minutes > 1 ? "s" : ""}`;
@@ -264,7 +275,7 @@ export default function NotificationDropdown() {
                           : "Catalogue"}
                       </span>
                       <span className="w-1 h-1 bg-gray-400 rounded-full"></span>
-                      <span>{formatTimeAgo(notification.meta.timestamp)}</span>
+                      <span>{formatTimeAgo(notification.meta.timestamp || notification.created_at)}</span>
                     </span>
                   </span>
                 </DropdownItem>
