@@ -283,8 +283,6 @@ const ContractCard = ({
   // Check if signature was sent (status is PENDING_SIGNATURE means signature link was actually sent)
   const hasSignatureSent = contract.status === "PENDING_SIGNATURE";
 
-  // Check if PDF was generated (status is PENDING_SIGNATURE or has generated PDF)
-  const hasPdfBeenGenerated = contract.status === "PENDING_SIGNATURE" || hasPdfGenerated;
 
   // COLLABORATOR cannot deactivate contracts
   const isCollaborator = !canManage && canGeneratePDF;
@@ -293,6 +291,23 @@ const ContractCard = ({
   const cannotModifyAsNonAdmin = !isAdmin && isSigned;
 
   const signLinkUrl = buildSignLinkUrl(contract.sign_link?.token);
+
+  // Signature électronique should be disabled when status is PENDING (waiting for manual PDF upload)
+  const isPendingManualUpload = contract.status === "PENDING";
+
+  // Debug: Check why signature button is disabled
+  const signatureButtonDisabled = !canUseSignature || signatureLoadingId === contract.id || isDisabled || cannotModifyAsNonAdmin || hasSignatureSent || isSigned || isPendingManualUpload;
+  console.log("🔍 DEBUG Signature Button - Contrat", contract.contract_number, "Status:", contract.status, {
+    disabled: signatureButtonDisabled,
+    canUseSignature,
+    signatureLoadingId: signatureLoadingId === contract.id,
+    isDisabled,
+    cannotModifyAsNonAdmin,
+    hasSignatureSent,
+    isSigned,
+    isPendingManualUpload,
+  });
+
   const dresses = (contract.dresses ?? [])
     .map((dress) => dress?.dress ?? dress)
     .filter((dress): dress is NonNullable<typeof dress> => Boolean(dress));
@@ -460,7 +475,7 @@ const ContractCard = ({
           >
             Voir contrat signé
           </Button>
-        ) : !hasPdfGenerated ? (
+        ) : contract.status === "DRAFT" || !hasPdfGenerated ? (
           <Button
             size="sm"
             variant="outline"
@@ -492,7 +507,7 @@ const ContractCard = ({
         <Button
           size="sm"
           variant="outline"
-          disabled={!canManage || isDisabled || cannotModifyAsNonAdmin}
+          disabled={!canManage || isDisabled || cannotModifyAsNonAdmin || isPendingManualUpload}
           onClick={() => onEdit(contract)}
         >
           Modifier contrat
@@ -514,7 +529,7 @@ const ContractCard = ({
         <Button
           size="sm"
           variant="outline"
-          disabled={!canUseSignature || !signLinkUrl || signatureLoadingId === contract.id || isDisabled || cannotModifyAsNonAdmin || hasPdfBeenGenerated}
+          disabled={signatureButtonDisabled}
           onClick={() => onSignature(contract)}
         >
           {signatureLoadingId === contract.id ? "Envoi en cours..." : "Signature électronique"}
@@ -1288,19 +1303,33 @@ export default function Customers() {
     setPdfGeneratingContractId(contract.id);
     try {
       const res = await ContractsAPI.generatePdf(contract.id);
+      console.log("🔍 DEBUG generatePdf - Réponse:", res);
       if (res?.link) {
         window.open(res.link, "_blank", "noopener,noreferrer");
         // Mark this contract as having a generated PDF
         setGeneratedPdfContracts((prev) => new Set(prev).add(contract.id));
 
-        // Update contract status to PENDING_SIGNATURE
-        setViewContracts((prev) =>
-          prev.map((item) =>
-            item.id === contract.id ? { ...item, status: "PENDING_SIGNATURE" } : item
-          )
-        );
+        // Update contract status to PENDING after PDF generation
+        try {
+          const updatedContract = await ContractsAPI.update(contract.id, { status: "PENDING" });
+          console.log("🔍 DEBUG update status to PENDING - Réponse:", {
+            id: updatedContract.id,
+            status: updatedContract.status,
+            signed_pdf_url: updatedContract.signed_pdf_url,
+            signed_at: updatedContract.signed_at,
+          });
+          // Update local state
+          setViewContracts((prev) =>
+            prev.map((c) => (c.id === contract.id ? { ...c, status: "PENDING" } : c))
+          );
+          notify("success", "Contrat généré", "Le contrat a été généré en PDF et est en attente de signature.");
+        } catch (updateError) {
+          console.error("❌ Mise à jour du statut :", updateError);
+          notify("success", "Contrat généré", "Le contrat a été généré en PDF.");
+        }
+      } else {
+        notify("success", "Contrat généré", "Le contrat a été généré en PDF.");
       }
-      notify("success", "Contrat généré", "Le contrat a été généré en PDF. Statut: En attente de signature");
     } catch (error) {
       console.error("❌ Génération contrat :", error);
       notify("error", "Erreur", "La génération du contrat a échoué.");
@@ -1392,6 +1421,12 @@ export default function Customers() {
       notify("warning", "Action non autorisée", "Vous n'avez pas les droits suffisants.");
       return;
     }
+    console.log("🔍 DEBUG handleEditContract - Contrat ouvert:", {
+      id: contract.id,
+      status: contract.status,
+      signed_pdf_url: contract.signed_pdf_url,
+      signed_at: contract.signed_at,
+    });
     setContractEditDrawer({ open: true, contract });
     setContractEditForm(buildContractEditFormState(contract));
     setContractEditSubmitting(false);
@@ -1544,6 +1579,7 @@ export default function Customers() {
       end_datetime: end.toISOString(),
     };
 
+    // Set status from form if provided
     if (contractEditForm.status) {
       payload.status = contractEditForm.status.toUpperCase();
     }
@@ -1586,6 +1622,7 @@ export default function Customers() {
     setContractEditSubmitting(true);
     try {
       const updated = await ContractsAPI.update(contractEditDrawer.contract.id, payload);
+
       setViewContracts((prev) =>
         prev.map((item) => (item.id === updated.id ? { ...item, ...updated } : item)),
       );
@@ -2310,7 +2347,7 @@ export default function Customers() {
                     readOnly
                   />
                 </div>
-                <div>
+                <div>si
                   <Label>Caution payée TTC</Label>
                   <Input
                     type="number"

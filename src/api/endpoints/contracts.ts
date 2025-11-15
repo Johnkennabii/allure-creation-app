@@ -255,14 +255,53 @@ export const ContractsAPI = {
 
   getSignatureByToken: async (token: string): Promise<ContractFullView> => {
     const res = await httpClient.get(`/sign-links/${token}`);
-    const data = res?.data ?? res;
+    const responseData = res?.data ?? res;
+
+    // Extract sign_link info from response
+    let signLink: any = null;
     let contract: any;
-    if (data?.contract && typeof data.contract === "object") {
-      contract = data.contract;
-    } else if (data?.data && typeof data.data === "object") {
-      contract = data.data;
+
+    // Response structure: { success: true, data: { id, token, expires_at, contract: {...} } }
+    if (responseData?.data && typeof responseData.data === "object") {
+      const data = responseData.data;
+
+      // Extract sign_link metadata
+      if (data.id && data.token && data.expires_at) {
+        signLink = {
+          id: data.id,
+          contract_id: data.contract_id,
+          customer_id: data.customer_id,
+          token: data.token,
+          expires_at: data.expires_at,
+        };
+      }
+
+      // Extract contract
+      if (data.contract && typeof data.contract === "object") {
+        contract = data.contract;
+      } else {
+        contract = data;
+      }
+    } else if (responseData?.contract && typeof responseData.contract === "object") {
+      contract = responseData.contract;
+
+      // Try to extract sign_link from root
+      if (responseData.id && responseData.token && responseData.expires_at) {
+        signLink = {
+          id: responseData.id,
+          contract_id: responseData.contract_id,
+          customer_id: responseData.customer_id,
+          token: responseData.token,
+          expires_at: responseData.expires_at,
+        };
+      }
     } else {
-      contract = data;
+      contract = responseData;
+    }
+
+    // Attach sign_link to contract
+    if (signLink && contract) {
+      contract.sign_link = signLink;
     }
 
     // Map nested customer object to flat properties

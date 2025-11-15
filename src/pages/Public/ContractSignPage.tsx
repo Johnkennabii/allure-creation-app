@@ -5,6 +5,7 @@ import Button from "../../components/ui/button/Button";
 import { Modal } from "../../components/ui/modal";
 import Checkbox from "../../components/form/input/Checkbox";
 import Label from "../../components/form/Label";
+import Alert from "../../components/ui/alert/Alert";
 import { useNotification } from "../../context/NotificationContext";
 import {
   ContractsAPI,
@@ -109,11 +110,29 @@ export default function ContractSignPage() {
     return [] as ContractAddon[];
   }, [contract]);
 
+  const isDisabled = useMemo(() => {
+    return Boolean(contract?.deleted_at);
+  }, [contract]);
+
   const isSigned = useMemo(() => {
     if (!contract) return false;
-    if (contract.deleted_at) return true;
     const status = (contract.status ?? "").toUpperCase();
     return SIGNED_STATUSES.has(status);
+  }, [contract]);
+
+  const daysRemaining = useMemo(() => {
+    console.log("🔍 DEBUG daysRemaining - contract:", contract);
+    console.log("🔍 DEBUG daysRemaining - sign_link:", contract?.sign_link);
+    if (!contract?.sign_link?.expires_at) {
+      console.log("⚠️ Pas de sign_link.expires_at");
+      return null;
+    }
+    const expiresAt = new Date(contract.sign_link.expires_at);
+    const now = new Date();
+    const diffMs = expiresAt.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    console.log("🔍 DEBUG daysRemaining - diffDays:", diffDays, "expires:", expiresAt, "now:", now);
+    return diffDays;
   }, [contract]);
 
   const handleConfirmSignature = async () => {
@@ -215,6 +234,39 @@ export default function ContractSignPage() {
             Contrat n° {contract.contract_number ?? "-"} — {formatDateTime(contract.created_at)}
           </p>
         </header>
+
+        {(() => {
+          console.log("🔍 DEBUG Alerte conditions:", {
+            daysRemaining,
+            daysRemainingNotNull: daysRemaining !== null,
+            daysRemainingPositive: daysRemaining !== null && daysRemaining > 0,
+            isSigned,
+            isDisabled,
+            showInfoAlert: daysRemaining !== null && daysRemaining > 0 && !isSigned && !isDisabled,
+            showErrorAlert: daysRemaining !== null && daysRemaining <= 0 && !isSigned && !isDisabled,
+          });
+          return null;
+        })()}
+
+        {daysRemaining !== null && daysRemaining > 0 && !isSigned && !isDisabled && (
+          <Alert
+            variant="info"
+            title="Validité du lien de signature"
+            message={
+              daysRemaining === 1
+                ? "Ce lien de signature expire dans 1 jour. Veuillez signer le contrat avant son expiration."
+                : `Ce lien de signature expire dans ${daysRemaining} jours. Veuillez signer le contrat avant son expiration.`
+            }
+          />
+        )}
+
+        {daysRemaining !== null && daysRemaining <= 0 && !isSigned && !isDisabled && (
+          <Alert
+            variant="error"
+            title="Lien expiré"
+            message="Ce lien de signature a expiré. Veuillez contacter l'entreprise pour obtenir un nouveau lien."
+          />
+        )}
 
         <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-theme-sm">
           <h2 className="text-base font-semibold text-gray-900">Informations client</h2>
@@ -520,8 +572,8 @@ export default function ContractSignPage() {
           <p className="text-sm text-gray-600">
             En cliquant sur « Signer », vous confirmez votre accord pour l’intégralité des clauses ci-dessus.
           </p>
-          <Button onClick={() => setModalOpen(true)} disabled={isSigned}>
-            {isSigned ? "Contrat déjà signé" : "Signer électroniquement"}
+          <Button onClick={() => setModalOpen(true)} disabled={isSigned || isDisabled}>
+            {isDisabled ? "Contrat désactivé" : isSigned ? "Contrat déjà signé" : "Signer électroniquement"}
           </Button>
         </div>
       </div>
