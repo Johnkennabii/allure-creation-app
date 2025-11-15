@@ -64,6 +64,7 @@ export default function ContractAddons() {
   const [updating, setUpdating] = useState(false);
   const [createForm, setCreateForm] = useState({
     name: "",
+    description: "",
     price_ht: "",
     price_ttc: "",
     included: false,
@@ -71,6 +72,7 @@ export default function ContractAddons() {
   const [editAddon, setEditAddon] = useState<ContractAddon | null>(null);
   const [editForm, setEditForm] = useState({
     name: "",
+    description: "",
     price_ht: "",
     price_ttc: "",
     included: false,
@@ -113,7 +115,7 @@ export default function ContractAddons() {
       notify("warning", "Action non autorisée", "Vous n'avez pas les droits suffisants.");
       return;
     }
-    setCreateForm({ name: "", price_ht: "", price_ttc: "", included: false });
+    setCreateForm({ name: "", description: "", price_ht: "", price_ttc: "", included: false });
     setCreateOpen(true);
   };
 
@@ -151,6 +153,7 @@ export default function ContractAddons() {
     setEditAddon(addon);
     setEditForm({
       name: addon.name,
+      description: addon.description ?? "",
       price_ht: addon.price_ht ?? "",
       price_ttc: addon.price_ttc ?? "",
       included: Boolean(addon.included),
@@ -265,6 +268,7 @@ export default function ContractAddons() {
       setCreating(true);
       const payload = {
         name: createForm.name.trim(),
+        description: createForm.description.trim() || null,
         price_ht: priceHtValue,
         price_ttc: priceTtcValue,
         included: createForm.included,
@@ -301,6 +305,7 @@ export default function ContractAddons() {
       setUpdating(true);
       const payload = {
         name: editForm.name.trim(),
+        description: editForm.description.trim() || null,
         price_ht: priceHtValue,
         price_ttc: priceTtcValue,
         included: editForm.included,
@@ -370,6 +375,9 @@ export default function ContractAddons() {
                     Nom
                   </TableCell>
                   <TableCell isHeader className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                    Description
+                  </TableCell>
+                  <TableCell isHeader className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
                     Prix HT
                   </TableCell>
                   <TableCell isHeader className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
@@ -385,6 +393,9 @@ export default function ContractAddons() {
                   <TableRow key={row.id} className="hover:bg-gray-50 dark:hover:bg-white/[0.05]">
                     <TableCell className="px-4 py-3 text-sm font-medium text-gray-800 dark:text-white/90">
                       {row.name}
+                    </TableCell>
+                    <TableCell className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
+                      {row.description || "-"}
                     </TableCell>
                     <TableCell className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
                       {row.formattedHT}
@@ -533,6 +544,16 @@ export default function ContractAddons() {
             </div>
             <div>
               <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Description (optionnel)
+              </label>
+              <Input
+                value={createForm.description}
+                onChange={(e) => handleCreateChange("description", e.target.value)}
+                placeholder="Description de l'option"
+              />
+            </div>
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
                 Prix HT
               </label>
               <Input
@@ -602,6 +623,16 @@ export default function ContractAddons() {
                 onChange={(e) => handleEditChange("name", e.target.value)}
                 placeholder="Nom"
                 required
+              />
+            </div>
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Description (optionnel)
+              </label>
+              <Input
+                value={editForm.description}
+                onChange={(e) => handleEditChange("description", e.target.value)}
+                placeholder="Description de l'option"
               />
             </div>
             <div>
