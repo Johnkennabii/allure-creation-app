@@ -509,11 +509,14 @@ export default function ContractSignPage() {
                   key={addon.id}
                   className="flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50/60 px-4 py-3"
                 >
-                  <div>
+                  <div className="flex-1">
                     <p className="font-medium text-gray-900">{addon.name}</p>
+                    {addon.description && (
+                      <p className="text-xs text-gray-600">{addon.description}</p>
+                    )}
                     <p className="text-xs text-gray-500">{getAddonLabel(addon.id)}</p>
                   </div>
-                  <p className="text-xs text-gray-500">{formatCurrency(addon.price_ttc)} TTC</p>
+                  <p className="ml-3 text-xs text-gray-500">{formatCurrency(addon.price_ttc)} TTC</p>
                 </div>
               ))}
             </div>

@@ -325,6 +325,7 @@ const ContractCard = ({
     : contract.addon_links?.map((link) => link.addon).filter((addon): addon is NonNullable<typeof addon> => Boolean(addon))) ?? []) as Array<{
     id?: string;
     name?: string;
+    description?: string | null;
     price_ttc?: string | number | null;
     price_ht?: string | number | null;
     included?: boolean;
@@ -429,13 +430,18 @@ const ContractCard = ({
                 key={addon.id}
                 className="flex items-center justify-between rounded-xl bg-gray-50/70 px-3 py-2 dark:bg-white/10"
               >
-                <div className="space-y-0.5">
+                <div className="flex-1 space-y-0.5">
                   <span className="font-medium text-gray-900 dark:text-white">{addon.name}</span>
+                  {addon.description && (
+                    <span className="block text-xs text-gray-600 dark:text-gray-300">
+                      {addon.description}
+                    </span>
+                  )}
                   <span className="block text-xs text-gray-500 dark:text-gray-400">
                     {getAddonLabel(addon.id)}
                   </span>
                 </div>
-                <span className="text-xs text-gray-500 dark:text-gray-400">
+                <span className="ml-3 text-xs text-gray-500 dark:text-gray-400">
                   {formatCurrency(addon.price_ttc)} TTC
                 </span>
               </li>

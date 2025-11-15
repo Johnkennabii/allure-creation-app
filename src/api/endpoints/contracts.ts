@@ -3,6 +3,7 @@ import { httpClient } from "../httpClient";
 export interface ContractAddon {
   id: string;
   name: string;
+  description?: string | null;
   included: boolean;
   price_ht: number | string;
   price_ttc: number | string;

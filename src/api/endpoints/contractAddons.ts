@@ -3,6 +3,7 @@ import { httpClient } from "../httpClient";
 export interface ContractAddon {
   id: string;
   name: string;
+  description?: string | null;
   price_ht: string;
   price_ttc: string;
   included: boolean;
@@ -25,6 +26,7 @@ export const ContractAddonsAPI = {
 
   create: async (payload: {
     name: string;
+    description?: string | null;
     price_ht: number;
     price_ttc: number;
     included: boolean;
@@ -35,7 +37,7 @@ export const ContractAddonsAPI = {
 
   update: async (
     addonId: string,
-    payload: { name: string; price_ht: number; price_ttc: number; included: boolean },
+    payload: { name: string; description?: string | null; price_ht: number; price_ttc: number; included: boolean },
   ) => {
     const res = await httpClient.put(`/contract-addons/${addonId}`, payload);
     return res?.data ?? res;
