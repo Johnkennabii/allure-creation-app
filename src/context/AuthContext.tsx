@@ -93,8 +93,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       try {
         const me = await AuthAPI.me();
         setUser(me);
-      } catch {
-        handleSessionExpired();
+      } catch (error: any) {
+        // Ne déconnecter que si c'est une vraie erreur d'authentification (401)
+        // Ignorer les erreurs serveur (502, 503, etc.) pour éviter de déconnecter l'utilisateur
+        if (error.status === 401 || error.message === "Unauthorized") {
+          handleSessionExpired();
+        } else {
+          // Erreur serveur temporaire, on garde l'utilisateur connecté
+          console.warn("Erreur temporaire lors de la vérification du profil:", error.status || error.message);
+        }
       } finally {
         setLoading(false);
       }

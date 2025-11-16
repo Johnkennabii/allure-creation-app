@@ -86,8 +86,11 @@ async function performRequest(path: string, options: CustomRequestInit = {}, ret
 
   if (!response.ok) {
     const errorText = await response.text();
+    const error: any = new Error(errorText);
+    error.status = response.status;
+    error.statusText = response.statusText;
     notifyFn?.("error", "Erreur API", `(${response.status}) ${errorText}`);
-    throw new Error(errorText);
+    throw error;
   }
 
   if (response.status === 204) return null;
