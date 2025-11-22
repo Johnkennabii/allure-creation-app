@@ -46,8 +46,12 @@ export default function DatePicker({
       baseOptions.mode = "single";
     }
 
+    // Ne pas définir defaultDate si undefined pour éviter la sélection automatique de la date actuelle
     if (defaultDate !== undefined) {
       baseOptions.defaultDate = defaultDate;
+    } else {
+      // Désactiver la sélection automatique de la date actuelle
+      baseOptions.defaultDate = undefined;
     }
 
     if (onChange) {
@@ -69,7 +73,7 @@ export default function DatePicker({
         flatpickrRef.current = null;
       }
     };
-  }, [mode, onChange, id, optionsSignature]);
+  }, [mode, onChange, id, optionsSignature, defaultDate]);
 
   useEffect(() => {
     const instance = flatpickrRef.current;

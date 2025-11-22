@@ -63,7 +63,10 @@ async function performRequest(path: string, options: CustomRequestInit = {}, ret
     ...requestInit,
   });
 
-  if (response.status === 401 && retry && hadToken && refreshFn && !skipRefresh) {
+  // Ne pas traiter le 401 comme une session expirée si c'est une tentative de connexion
+  const isLoginRequest = path === "/auth/login";
+
+  if (response.status === 401 && retry && hadToken && refreshFn && !skipRefresh && !isLoginRequest) {
     try {
       const refreshed = await refreshFn();
       if (refreshed) {
@@ -74,7 +77,7 @@ async function performRequest(path: string, options: CustomRequestInit = {}, ret
     }
   }
 
-  if (response.status === 401) {
+  if (response.status === 401 && !isLoginRequest) {
     if (sessionExpiredFn) {
       sessionExpiredFn();
     } else {
@@ -89,7 +92,13 @@ async function performRequest(path: string, options: CustomRequestInit = {}, ret
     const error: any = new Error(errorText);
     error.status = response.status;
     error.statusText = response.statusText;
-    notifyFn?.("error", "Erreur API", `(${response.status}) ${errorText}`);
+
+    // Ne pas notifier automatiquement pour les erreurs de connexion (/auth/login)
+    // car elles sont gérées spécifiquement dans AuthContext avec des messages personnalisés
+    if (!isLoginRequest) {
+      notifyFn?.("error", "Erreur API", `(${response.status}) ${errorText}`);
+    }
+
     throw error;
   }
 

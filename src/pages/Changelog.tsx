@@ -24,6 +24,30 @@ interface HelpSection {
 
 const changelogs: ChangelogEntry[] = [
   {
+    version: "2.3.0",
+    date: "14 novembre 2025",
+    type: "added",
+    description: "Workflow simplifié des contrats: DRAFT (Générer PDF) → DRAFT (Importer signé) → SIGNED (Voir contrat)",
+  },
+  {
+    version: "2.3.0",
+    date: "14 novembre 2025",
+    type: "improved",
+    description: "Bouton dynamique: Générer PDF → Importer contrat signé → Voir contrat signé selon l'état réel",
+  },
+  {
+    version: "2.3.0",
+    date: "14 novembre 2025",
+    type: "added",
+    description: "Documentation complète du workflow des contrats avec 9 étapes détaillées",
+  },
+  {
+    version: "2.3.0",
+    date: "14 novembre 2025",
+    type: "improved",
+    description: "Enrichissement du guide d'aide avec workflow détaillé, règles par rôle et transitions de statuts",
+  },
+  {
     version: "2.2.0",
     date: "14 novembre 2025",
     type: "added",
@@ -169,27 +193,47 @@ const helpSections: HelpSection[] = [
     features: [
       {
         name: "Création de contrats",
-        description: "Créez des contrats de location par jour ou en forfait avec sélection de robes et addons",
+        description: "Créez des contrats de location par jour ou en forfait avec sélection de robes et addons. Statut initial: DRAFT (Brouillon)",
         roles: ["ADMIN", "MANAGER", "COLLABORATOR"],
       },
       {
-        name: "Génération de PDF",
-        description: "Générez automatiquement le PDF du contrat prêt à être signé",
+        name: "Workflow complet",
+        description: "DRAFT → PENDING (après génération PDF) → SIGNED/SIGNED_ELECTRONICALLY → COMPLETED (fin de location)",
+        roles: ["ADMIN", "MANAGER", "COLLABORATOR"],
+      },
+      {
+        name: "Génération de PDF manuel",
+        description: "Générez le PDF du contrat. Statut passe de DRAFT à PENDING. Le bouton devient 'Importer contrat signé'",
         roles: ["ADMIN", "MANAGER", "COLLABORATOR"],
       },
       {
         name: "Signature électronique",
-        description: "Envoyez un lien de signature électronique au client via Yousign",
+        description: "Envoyez un lien de signature au client. Statut passe à PENDING_SIGNATURE. Email automatique avec lien sécurisé",
         roles: ["ADMIN", "MANAGER"],
       },
       {
         name: "Upload contrat signé",
-        description: "Importez le PDF du contrat signé pour archivage",
+        description: "Importez le PDF signé manuellement. Statut passe à SIGNED. Bouton devient 'Voir le contrat signé'",
         roles: ["ADMIN", "MANAGER", "COLLABORATOR"],
       },
       {
+        name: "Modification de contrats",
+        description: "ADMIN: peut tout modifier. MANAGER: peut modifier avant signature. COLLABORATOR: peut modifier uniquement les DRAFT",
+        roles: ["ADMIN", "MANAGER", "COLLABORATOR"],
+      },
+      {
+        name: "Statuts disponibles",
+        description: "DRAFT, PENDING, PENDING_SIGNATURE, CONFIRMED, SIGNED, SIGNED_ELECTRONICALLY, COMPLETED, DISABLED, CANCELLED",
+        roles: ["ADMIN", "MANAGER", "COLLABORATOR"],
+      },
+      {
+        name: "Verrouillage après signature",
+        description: "Une fois SIGNED ou SIGNED_ELECTRONICALLY, seuls les ADMIN peuvent modifier. Protection des contrats signés",
+        roles: ["ADMIN"],
+      },
+      {
         name: "Calculs automatiques",
-        description: "Prix TTC, cautions et réductions calculés automatiquement",
+        description: "Prix TTC, cautions et réductions calculés automatiquement selon le type de location et les addons",
         roles: ["ADMIN", "MANAGER", "COLLABORATOR"],
       },
     ],
@@ -331,6 +375,62 @@ const helpSections: HelpSection[] = [
       {
         name: "Archivage",
         description: "Conservez tous les contrats signés en PDF",
+        roles: ["ADMIN", "MANAGER", "COLLABORATOR"],
+      },
+    ],
+  },
+  {
+    title: "Workflow Détaillé des Contrats",
+    icon: <HiOutlineTicket className="size-6" />,
+    features: [
+      {
+        name: "1. Création (DRAFT)",
+        description: "Le contrat est créé au statut DRAFT. Tous les boutons sont actifs pour ADMIN, MANAGER et COLLABORATOR",
+        roles: ["ADMIN", "MANAGER", "COLLABORATOR"],
+      },
+      {
+        name: "2. Génération PDF manuel (PENDING)",
+        description: "Clic sur 'Générer le PDF' → statut PENDING. Le bouton devient 'Importer contrat signé'. Signature électronique désactivée jusqu'à modification",
+        roles: ["ADMIN", "MANAGER", "COLLABORATOR"],
+      },
+      {
+        name: "3. Modification après PENDING",
+        description: "Clic sur 'Modifier' → retour au statut DRAFT. Le bouton redevient 'Générer le PDF'. Tous les boutons redeviennent actifs",
+        roles: ["ADMIN", "MANAGER", "COLLABORATOR"],
+      },
+      {
+        name: "4. Import manuel signé (SIGNED)",
+        description: "Upload du PDF signé → statut SIGNED. Bouton devient 'Voir le contrat signé'. Modification/Désactivation/Signature désactivées sauf pour ADMIN",
+        roles: ["ADMIN", "MANAGER", "COLLABORATOR"],
+      },
+      {
+        name: "5. Signature électronique (PENDING_SIGNATURE)",
+        description: "Clic sur 'Signature électronique' → statut PENDING_SIGNATURE. Email envoyé au client avec lien sécurisé. Génération PDF et Signature désactivées",
+        roles: ["ADMIN", "MANAGER"],
+      },
+      {
+        name: "6. Client signe (SIGNED_ELECTRONICALLY)",
+        description: "Le client signe via le lien → statut SIGNED_ELECTRONICALLY. PDF signé enregistré automatiquement. Contrat verrouillé",
+        roles: ["ADMIN", "MANAGER", "COLLABORATOR"],
+      },
+      {
+        name: "7. Fin de location (COMPLETED)",
+        description: "Le lendemain de la fin de location → statut COMPLETED automatiquement",
+        roles: ["ADMIN", "MANAGER", "COLLABORATOR"],
+      },
+      {
+        name: "8. Désactivation/Réactivation",
+        description: "ADMIN et MANAGER peuvent désactiver (DISABLED) ou réactiver un contrat. COLLABORATOR ne peut que désactiver, pas réactiver",
+        roles: ["ADMIN", "MANAGER"],
+      },
+      {
+        name: "9. Annulation",
+        description: "Le statut CANCELLED peut être appliqué pour annuler un contrat. Visible par tous les rôles",
+        roles: ["ADMIN", "MANAGER", "COLLABORATOR"],
+      },
+      {
+        name: "Règles d'édition par rôle",
+        description: "ADMIN: tous droits. MANAGER: modification avant signature. COLLABORATOR: modification uniquement DRAFT, peut changer statut vers DRAFT uniquement",
         roles: ["ADMIN", "MANAGER", "COLLABORATOR"],
       },
     ],

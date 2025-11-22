@@ -2,7 +2,13 @@ import SimpleBar from "simplebar-react";
 import EmailDetailsHeader from "./EmailDetailsHeader";
 import EmailDetailsBottom from "./EmailDetailsBottom";
 
-export default function EmailWrapper() {
+interface EmailWrapperProps {
+  selectedMailbox: string;
+}
+
+export default function EmailWrapper({ selectedMailbox: _selectedMailbox }: EmailWrapperProps) {
+  // TODO: Utiliser _selectedMailbox pour afficher le détail d'un email spécifique
+  // Pour l'instant, on affiche juste le contenu statique
   return (
     <div className="flex flex-col justify-between overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03] xl:h-full">
       <EmailDetailsHeader />

@@ -3,7 +3,12 @@ import MailBox from "./MailBox";
 import FilterList from "./FilterList";
 import SimpleBar from "simplebar-react";
 
-export default function EmailSidebar() {
+interface EmailSidebarProps {
+  onMailboxSelect: (mailbox: string) => void;
+  selectedMailbox: string;
+}
+
+export default function EmailSidebar({ onMailboxSelect, selectedMailbox }: EmailSidebarProps) {
   return (
     <div className="flex flex-col rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
       <div className="pb-5">
@@ -34,7 +39,7 @@ export default function EmailSidebar() {
             <h3 className="mb-3 text-xs font-medium uppercase leading-[18px] text-gray-700 dark:text-gray-400">
               MAILBOX
             </h3>
-            <MailBox />
+            <MailBox onMailboxSelect={onMailboxSelect} selectedMailbox={selectedMailbox} />
           </div>
           {/* <!--== Mailbox Group End ==--> */}
 

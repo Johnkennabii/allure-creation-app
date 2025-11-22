@@ -27,6 +27,8 @@ import Customers from "./pages/Customers/Customers";
 import Catalogue from "./pages/Catalogue/Catalogue";
 import ContractSignPage from "./pages/Public/ContractSignPage";
 import Calendar from "./pages/Calendar";
+import Changelog from "./pages/Changelog";
+import Inbox from "./pages/Email/EmailInbox";
 
 export default function App() {
   return (
@@ -57,8 +59,8 @@ export default function App() {
             index
             path="/changelog"
             element={
-              <ProtectedRoute roles={["ADMIN", "MANAGER", ""]}>
-                <Ecommerce />
+              <ProtectedRoute roles={["ADMIN", "MANAGER"]}>
+                <Changelog />
               </ProtectedRoute>
             }
           />
@@ -67,6 +69,14 @@ export default function App() {
             element={
               <ProtectedRoute roles={["ADMIN"]}>
                 <Analytics />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/inbox"
+            element={
+              <ProtectedRoute roles={["ADMIN"]}>
+                <Inbox />
               </ProtectedRoute>
             }
           />

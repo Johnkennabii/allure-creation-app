@@ -33,7 +33,6 @@ const statusConfig: Record<
   DRAFT: { label: "Brouillon", color: "light" },
   PENDING: { label: "En attente", color: "warning" },
   PENDING_SIGNATURE: { label: "En attente de signature", color: "warning" },
-  CONFIRMED: { label: "Confirmé", color: "info" },
   SIGNED: { label: "Signé", color: "success" },
   SIGNED_ELECTRONICALLY: { label: "Signé électroniquement", color: "success" },
   COMPLETED: { label: "Terminé", color: "success" },

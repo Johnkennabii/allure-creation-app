@@ -91,14 +91,14 @@ export function getContractPermissions(
       // Pas de signature électronique (on attend un PDF manuel)
       permissions.canEdit = isAdmin || isManager;
       permissions.canSoftDelete = isAdmin || isManager;
-      permissions.canUploadSigned = isAdmin || isManager;
+      permissions.canUploadSigned = true;
       break;
 
     case 'PENDING_SIGNATURE':
       // PENDING_SIGNATURE: Lien envoyé, en attente de signature
       // Seuls ADMIN et MANAGER peuvent modifier
       // Pas de génération PDF ni envoi signature (déjà envoyé)
-      permissions.canEdit = isAdmin || isManager;
+      permissions.canEdit = true;
       permissions.canSoftDelete = isAdmin || isManager;
       break;
 

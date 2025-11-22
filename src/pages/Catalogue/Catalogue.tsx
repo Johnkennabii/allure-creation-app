@@ -208,8 +208,6 @@ const getContractStatusMeta = (status?: string | null, deletedAt?: string | null
       return { label: "En attente", color: "warning" as const };
     case "PENDING_SIGNATURE":
       return { label: "En attente de signature", color: "warning" as const };
-    case "CONFIRMED":
-      return { label: "Confirmé", color: "success" as const };
     case "SIGNED":
       return { label: "Signé", color: "success" as const };
     case "SIGNED_ELECTRONICALLY":
@@ -309,14 +307,14 @@ const isDressNew = (createdAt?: string | null) => {
 };
 
 const IconTooltip = ({ title, children }: { title: string; children: React.ReactNode }) => (
-  <div className="group relative inline-flex">
+  <div className="group/icontooltip relative inline-flex">
     {children}
-    <div className="pointer-events-none invisible absolute bottom-full left-1/2 z-30 mb-2 -translate-x-1/2 opacity-0 transition-opacity duration-150 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
+    <div className="pointer-events-none invisible absolute bottom-full left-1/2 z-30 mb-2 -translate-x-1/2 opacity-0 transition-opacity duration-150 group-hover/icontooltip:visible group-hover/icontooltip:opacity-100 group-focus-within/icontooltip:visible group-focus-within/icontooltip:opacity-100">
       <div className="relative">
-        <div className="whitespace-nowrap rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-medium text-white shadow-lg">
+        <div className="whitespace-nowrap rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-medium text-white shadow-lg dark:bg-gray-100 dark:text-gray-900">
           {title}
         </div>
-        <div className="absolute -bottom-1 left-1/2 h-3 w-4 -translate-x-1/2 rotate-45 bg-gray-900" />
+        <div className="absolute -bottom-1 left-1/2 h-3 w-4 -translate-x-1/2 rotate-45 bg-gray-900 dark:bg-gray-100" />
       </div>
     </div>
   </div>
@@ -756,15 +754,12 @@ export default function Catalogue() {
 
       const totalHT = baseHT + defaultAddonTotals.chargeableHT;
       const totalTTC = baseTTC + defaultAddonTotals.chargeableTTC;
-      const depositBaseHT = totalHT + defaultAddonTotals.includedHT;
-      const depositBaseTTC = totalTTC + defaultAddonTotals.includedTTC;
-      // Pour forfait: Acompte TTC = Prix TTC (100% du total)
-      // Pour location journalière: Acompte TTC = 50% du total
-      const depositHT = mode === "package" ? totalHT : depositBaseHT * 0.5;
-      const depositTTC = mode === "package" ? totalTTC : depositBaseTTC * 0.5;
-      // Acompte payé TTC : minimum 50% de l'acompte pour forfait, égal à l'acompte pour journalier
-      const depositPaidHT = mode === "package" ? depositHT * 0.5 : depositHT;
-      const depositPaidTTC = mode === "package" ? depositTTC * 0.5 : depositTTC;
+      // Acompte TTC = Prix total TTC (100% du total) pour tous les types de contrat
+      const depositHT = totalHT;
+      const depositTTC = totalTTC;
+      // Acompte payé TTC : 50% de l'acompte pour tous les types de contrat
+      const depositPaidHT = depositHT * 0.5;
+      const depositPaidTTC = depositTTC * 0.5;
 
       setContractForm({
         contractNumber: generateContractNumber(),
@@ -1137,19 +1132,22 @@ export default function Catalogue() {
       const totalHT = packageHT + addonsTotals.chargeableHT;
       const totalTTC = packageTTC + addonsTotals.chargeableTTC;
       const ratio = totalTTC > 0 && totalHT > 0 ? totalHT / totalTTC : packageVatRatio;
-      const defaultDepositTTC = totalTTC;
-      const minimumDeposit = defaultDepositTTC * 0.5;
+      // Acompte TTC = Prix total TTC (100%)
+      const depositTTC = totalTTC;
+      const depositHT = depositTTC * ratio;
       setContractForm((prev) => {
         if (!prev) return prev;
-        const currentDeposit = parseNumber(prev.depositTTC) ?? defaultDepositTTC;
-        const clampedDeposit = Math.min(Math.max(currentDeposit, minimumDeposit), defaultDepositTTC);
-        const depositTTCFormatted = formatMoneyValue(clampedDeposit);
-        const depositHTFormatted = formatMoneyValue(clampedDeposit * ratio);
+        const depositTTCFormatted = formatMoneyValue(depositTTC);
+        const depositHTFormatted = formatMoneyValue(depositHT);
 
-        const currentDepositPaid = parseNumber(prev.depositPaidTTC) ?? clampedDeposit;
-        const clampedDepositPaid = Math.min(Math.max(currentDepositPaid, clampedDeposit), defaultDepositTTC);
-        const depositPaidTTCFormatted = formatMoneyValue(clampedDepositPaid);
-        const depositPaidHTFormatted = formatMoneyValue(clampedDepositPaid * ratio);
+        // Acompte payé TTC : 50% du prix total TTC par défaut
+        const currentDepositPaid = parseNumber(prev.depositPaidTTC) ?? 0;
+        const defaultDepositPaid = totalTTC * 0.5;
+        const depositPaidTTC = currentDepositPaid > 0 ? currentDepositPaid : defaultDepositPaid;
+        // Préserver la valeur brute si elle ressemble à une saisie en cours (pas encore bien formatée)
+        const looksLikeRawInput = prev.depositPaidTTC && prev.depositPaidTTC !== formatMoneyValue(parseNumber(prev.depositPaidTTC) ?? 0);
+        const depositPaidTTCFormatted = looksLikeRawInput ? prev.depositPaidTTC : formatMoneyValue(depositPaidTTC);
+        const depositPaidHTFormatted = formatMoneyValue(depositPaidTTC * ratio);
 
         const nextTotals = {
           totalDays: days,
@@ -1183,19 +1181,20 @@ export default function Catalogue() {
     const baseTTC = pricePerDay.ttc * days;
     const totalHT = baseHT + addonsTotals.chargeableHT;
     const totalTTC = baseTTC + addonsTotals.chargeableTTC;
-    const depositBaseHT = totalHT + addonsTotals.includedHT;
-    const depositBaseTTC = totalTTC + addonsTotals.includedTTC;
-    // Pour forfait: Acompte TTC = Prix TTC (100% du total)
-    // Pour location journalière: Acompte TTC = 50% du total
-    const depositHT = contractDrawer.mode === "package" ? totalHT : depositBaseHT * 0.5;
-    const depositTTC = contractDrawer.mode === "package" ? totalTTC : depositBaseTTC * 0.5;
-    // Maintenir l'acompte payé actuel ou définir 50% de l'acompte pour forfait
+    // Acompte TTC = Prix total TTC (100% du total) pour tous les types de contrat
+    const depositHT = totalHT;
+    const depositTTC = totalTTC;
+    // Maintenir l'acompte payé actuel ou définir 50% de l'acompte
     const currentDepositPaid = toNumeric(contractForm?.depositPaidTTC ?? "0");
-    const minDepositPaid = contractDrawer.mode === "package" ? depositTTC * 0.5 : depositTTC;
+    const minDepositPaid = depositTTC * 0.5;
     const depositPaidTTC = Math.max(currentDepositPaid, minDepositPaid);
     const depositPaidHT = depositPaidTTC * (contractDrawer.mode === "package" ? packageVatRatio : vatRatio);
     const cautionHT = toNumeric(activeDress.price_ht ?? totalHT);
     const cautionTTC = toNumeric(activeDress.price_ttc ?? totalTTC);
+
+    // Préserver la valeur brute si elle ressemble à une saisie en cours
+    const currentValue = contractForm?.depositPaidTTC ?? "";
+    const looksLikeRawInput = currentValue && currentValue !== formatMoneyValue(parseNumber(currentValue) ?? 0);
 
     const nextTotals = {
       totalDays: days,
@@ -1204,7 +1203,7 @@ export default function Catalogue() {
       depositHT: formatMoneyValue(depositHT),
       depositTTC: formatMoneyValue(depositTTC),
       depositPaidHT: formatMoneyValue(depositPaidHT),
-      depositPaidTTC: formatMoneyValue(depositPaidTTC),
+      depositPaidTTC: looksLikeRawInput ? currentValue : formatMoneyValue(depositPaidTTC),
       cautionHT: formatMoneyValue(cautionHT),
       cautionTTC: formatMoneyValue(cautionTTC),
     };
@@ -1875,8 +1874,20 @@ export default function Catalogue() {
 
   const handleCautionPaidChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value;
-    const numericRaw = parseNumber(value) ?? 0;
-    const maxCaution = parseNumber(contractForm?.cautionTTC ?? "0") ?? 0;
+    setContractForm((prev) =>
+      prev
+        ? {
+            ...prev,
+            cautionPaidTTC: value,
+          }
+        : prev,
+    );
+  };
+
+  const handleCautionPaidBlur = () => {
+    if (!contractForm) return;
+    const numericRaw = parseNumber(contractForm.cautionPaidTTC) ?? 0;
+    const maxCaution = parseNumber(contractForm.cautionTTC ?? "0") ?? 0;
     const numeric = Math.min(Math.max(numericRaw, 0), maxCaution);
     const ratio = contractDrawer.mode === "package" ? packageVatRatio : vatRatio;
     const ht = numeric * ratio;
@@ -1895,8 +1906,20 @@ export default function Catalogue() {
 
   const handleDepositPaidTTCChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value;
-    const numericRaw = parseNumber(value) ?? 0;
-    const depositTTC = parseNumber(contractForm?.depositTTC ?? "0") ?? 0;
+    setContractForm((prev) =>
+      prev
+        ? {
+            ...prev,
+            depositPaidTTC: value,
+          }
+        : prev,
+    );
+  };
+
+  const handleDepositPaidTTCBlur = () => {
+    if (!contractForm) return;
+    const numericRaw = parseNumber(contractForm.depositPaidTTC) ?? 0;
+    const depositTTC = parseNumber(contractForm.depositTTC ?? "0") ?? 0;
     const minimum = contractDrawer.mode === "package" ? Math.max(depositTTC * 0.5, 0) : 0;
     const numeric = Math.max(numericRaw, minimum);
     const ratio = contractDrawer.mode === "package" ? packageVatRatio : vatRatio;
@@ -1917,8 +1940,6 @@ export default function Catalogue() {
   const handlePaymentMethodChange = (value: string) => {
     setContractForm((prev) => (prev ? { ...prev, paymentMethod: (value as "card" | "cash") || "card" } : prev));
   };
-
-
 
   const handleCloseCustomerDrawer = () => {
     setCustomerDrawer({ open: false, contract: null, customer: null });
@@ -2048,9 +2069,9 @@ export default function Catalogue() {
         try {
           const files = createImages.map((item) => item.file);
           const compressed = await compressImages(files, {
-            maxWidth: 1600,
-            maxHeight: 1600,
-            quality: 0.82,
+            maxWidth: 1400,
+            maxHeight: 1400,
+            quality: 0.70,
           });
           const uploaded = await DressesAPI.uploadImages(compressed);
           if (uploaded.length) {
@@ -2187,9 +2208,9 @@ export default function Catalogue() {
       setEditUploadingImages(true);
       try {
         const compressed = await compressImages(filesToProcess, {
-          maxWidth: 1600,
-          maxHeight: 1600,
-          quality: 0.82,
+          maxWidth: 1400,
+          maxHeight: 1400,
+          quality: 0.70,
         });
         const uploaded = await DressesAPI.uploadImages(compressed);
         if (!uploaded.length) {
@@ -2360,7 +2381,8 @@ export default function Catalogue() {
     const minimumDepositTTC = contractDrawer.mode === "package" ? totalPriceTTCNumber * 0.5 : 0;
     const depositTTCValue = Math.max(toNumber(contractForm.depositTTC), minimumDepositTTC);
     const depositHTValue = Math.round(depositTTCValue * vatRatioForTotals * 100) / 100;
-    const depositPaidTTCValue = Math.max(toNumber(contractForm.depositPaidTTC), depositTTCValue);
+    // Utiliser la valeur saisie pour depositPaidTTC (pas de Math.max avec depositTTCValue)
+    const depositPaidTTCValue = toNumber(contractForm.depositPaidTTC);
     const depositPaidHTValue = Math.round(depositPaidTTCValue * vatRatioForTotals * 100) / 100;
 
     const dressIds =
@@ -2585,7 +2607,7 @@ export default function Catalogue() {
                       value: <ColorSwatch hex={dress.hex_code} name={dress.color_name} />,
                     },
                     {
-                      label: "Prix location / jour TTC",
+                      label: "Prix / jour TTC",
                       value: formatCurrency(dress.price_per_day_ttc),
                     },
                   ];
@@ -2721,7 +2743,7 @@ export default function Catalogue() {
                       badges={badges}
                       footer={actionFooter}
                       overlayBadges={overlayBadges}
-                      imageClassName="w-full h-80 object-contain bg-white"
+                      imageClassName="w-full h-80 object-cover bg-white"
                     />
                   );
                 })}
@@ -2750,194 +2772,271 @@ export default function Catalogue() {
         widthClassName="w-full max-w-4xl"
       >
         <form className="space-y-6" onSubmit={handleCreateSubmit}>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <Label>Nom</Label>
-              <Input
-                value={createForm.name}
-                onChange={(event) => handleCreateChange("name", event.target.value)}
-                required
-              />
-            </div>
-            <div>
-              <Label>Référence</Label>
-              <div className="relative">
-                <Input
-                  value={createForm.reference}
-                  onChange={(event) => handleCreateChange("reference", event.target.value)}
-                  required
-                  className="pr-10"
-                />
-                <button
-                  type="button"
-                  onClick={() => handleCreateChange("reference", generateReference())}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-brand-600 hover:text-brand-700 transition-colors"
-                  title="Générer une référence automatique"
-                >
-                  <FaBarcode size={18} />
-                </button>
+          {/* Section Informations générales */}
+          <div className="rounded-2xl bg-white shadow-theme-sm ring-1 ring-gray-200/70 dark:bg-white/[0.03] dark:ring-white/10">
+            <div className="overflow-hidden rounded-t-2xl border-b border-gray-200 bg-gradient-to-r from-purple-50/80 to-white/50 p-5 dark:border-gray-800 dark:from-purple-950/10 dark:to-white/[0.01]">
+              <div className="flex items-center gap-2">
+                <svg className="h-5 w-5 text-purple-600 dark:text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div>
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">
+                    Informations générales
+                  </h3>
+                  <p className="text-xs text-gray-600 dark:text-gray-400">
+                    Nom et référence de la robe
+                  </p>
+                </div>
               </div>
             </div>
-            <div>
-              <Label>Prix HT (€)</Label>
-              <Input
-                type="number"
-                step="0.01"
-                min="0"
-                value={createForm.price_ht}
-                disabled
-                className="bg-gray-100 cursor-not-allowed"
-              />
-            </div>
-            <div>
-              <Label>Prix TTC (€)</Label>
-              <Input
-                type="number"
-                step="0.01"
-                min="0"
-                value={createForm.price_ttc}
-                onChange={(event) => handleCreateChange("price_ttc", event.target.value)}
-                required
-              />
-            </div>
-            <div>
-              <Label>Location / jour HT (€)</Label>
-              <Input
-                type="number"
-                step="0.01"
-                min="0"
-                value={createForm.price_per_day_ht}
-                disabled
-                className="bg-gray-100 cursor-not-allowed"
-              />
-            </div>
-            <div>
-              <Label>Location / jour TTC (€)</Label>
-              <Input
-                type="number"
-                step="0.01"
-                min="0"
-                value={createForm.price_per_day_ttc}
-                onChange={(event) => handleCreateChange("price_per_day_ttc", event.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <Label>Type</Label>
-              <select
-                value={createForm.type_id}
-                onChange={(event) => handleCreateChange("type_id", event.target.value)}
-                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
-                required
-              >
-                <option value="">Sélectionner</option>
-                {dressTypes.map((type) => (
-                  <option key={type.id} value={type.id}>
-                    {type.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <Label>Taille</Label>
-              <select
-                value={createForm.size_id}
-                onChange={(event) => handleCreateChange("size_id", event.target.value)}
-                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
-                required
-              >
-                <option value="">Sélectionner</option>
-                {dressSizes.map((size) => (
-                  <option key={size.id} value={size.id}>
-                    {size.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <Label>État</Label>
-              <select
-                value={createForm.condition_id}
-                onChange={(event) => handleCreateChange("condition_id", event.target.value)}
-                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
-                required
-              >
-                <option value="">Sélectionner</option>
-                {dressConditions.map((condition) => (
-                  <option key={condition.id} value={condition.id}>
-                    {condition.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <Label>Couleur</Label>
-              <select
-                value={createForm.color_id}
-                onChange={(event) => handleCreateChange("color_id", event.target.value)}
-                className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
-              >
-                <option value="">Aucune</option>
-                {dressColors.map((color) => (
-                  <option key={color.id} value={color.id}>
-                    {color.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <Label>
-                Images ({createImages.length}/{MAX_IMAGES})
-              </Label>
-              {(createUploadingImages || creating) && (
-                <span className="text-xs text-gray-500 dark:text-gray-400">
-                  Téléversement en cours...
-                </span>
-              )}
-            </div>
-
-            {createImages.length ? (
-              <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
-                {createImages.map((item) => (
-                  <div key={item.preview} className="relative overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
-                    <img src={item.preview} alt="Prévisualisation" className="h-40 w-full object-cover" loading="lazy" />
+            <div className="space-y-5 p-6">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <Label>Nom</Label>
+                  <Input
+                    value={createForm.name}
+                    onChange={(event) => handleCreateChange("name", event.target.value)}
+                    required
+                  />
+                </div>
+                <div>
+                  <Label>Référence</Label>
+                  <div className="relative">
+                    <Input
+                      value={createForm.reference}
+                      onChange={(event) => handleCreateChange("reference", event.target.value)}
+                      required
+                      className="pr-10"
+                    />
                     <button
                       type="button"
-                      onClick={() => handleRemoveCreateImage(item.preview)}
-                      disabled={createUploadingImages || creating}
-                      className="absolute right-2 top-2 inline-flex size-8 items-center justify-center rounded-full bg-white/90 text-gray-600 shadow-theme-xs transition hover:bg-error-50 hover:text-error-600 dark:bg-gray-900/90 dark:text-gray-300"
+                      onClick={() => handleCreateChange("reference", generateReference())}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-brand-600 hover:text-brand-700 transition-colors"
+                      title="Générer une référence automatique"
                     >
-                      <TrashBinIcon className="size-4" />
+                      <FaBarcode size={18} />
                     </button>
                   </div>
-                ))}
+                </div>
               </div>
-            ) : (
-              <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-500 dark:border-gray-700 dark:bg-white/[0.02] dark:text-gray-400">
-                Aucune image sélectionnée pour l'instant. Elles seront importées après la création.
-              </div>
-            )}
+            </div>
+          </div>
 
-            <div
-              {...getCreateRootProps()}
-              className={`rounded-xl border border-dashed px-6 py-8 text-center transition ${
-                isCreateDragActive
-                  ? "border-brand-500 bg-brand-50/60 dark:border-brand-500/60 dark:bg-brand-500/10"
-                  : "border-gray-300 bg-gray-50 dark:border-gray-700 dark:bg-white/[0.02]"
-              } ${createImageDropDisabled ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:border-brand-500"}`}
-            >
-              <input {...getCreateInputProps()} />
-              <p className="text-sm text-gray-600 dark:text-gray-300">
-                Glissez-déposez vos images ou cliquez pour sélectionner des fichiers.
-              </p>
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                Formats acceptés : JPG, PNG, WebP, HEIC. Téléversement après validation du formulaire.
-              </p>
+          {/* Section Tarification */}
+          <div className="rounded-2xl bg-white shadow-theme-sm ring-1 ring-gray-200/70 dark:bg-white/[0.03] dark:ring-white/10">
+            <div className="overflow-hidden rounded-t-2xl border-b border-gray-200 bg-gradient-to-r from-emerald-50/80 to-white/50 p-5 dark:border-gray-800 dark:from-emerald-950/10 dark:to-white/[0.01]">
+              <div className="flex items-center gap-2">
+                <svg className="h-5 w-5 text-emerald-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div>
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">
+                    Tarification
+                  </h3>
+                  <p className="text-xs text-gray-600 dark:text-gray-400">
+                    Prix de vente et location par jour
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="space-y-5 p-6">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <Label>Prix TTC (€)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={createForm.price_ttc}
+                    onChange={(event) => handleCreateChange("price_ttc", event.target.value)}
+                    required
+                  />
+                </div>
+                <div>
+                  <Label>Prix HT (€)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={createForm.price_ht}
+                    disabled
+                    className="bg-gray-100 cursor-not-allowed dark:bg-gray-800"
+                  />
+                </div>
+                <div>
+                  <Label>Location / jour TTC (€)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={createForm.price_per_day_ttc}
+                    onChange={(event) => handleCreateChange("price_per_day_ttc", event.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label>Location / jour HT (€)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={createForm.price_per_day_ht}
+                    disabled
+                    className="bg-gray-100 cursor-not-allowed dark:bg-gray-800"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Section Caractéristiques */}
+          <div className="rounded-2xl bg-white shadow-theme-sm ring-1 ring-gray-200/70 dark:bg-white/[0.03] dark:ring-white/10">
+            <div className="overflow-hidden rounded-t-2xl border-b border-gray-200 bg-gradient-to-r from-blue-50/80 to-white/50 p-5 dark:border-gray-800 dark:from-blue-950/10 dark:to-white/[0.01]">
+              <div className="flex items-center gap-2">
+                <svg className="h-5 w-5 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                </svg>
+                <div>
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">
+                    Caractéristiques
+                  </h3>
+                  <p className="text-xs text-gray-600 dark:text-gray-400">
+                    Type, taille, état et couleur
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="space-y-5 p-6">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <Label>Type</Label>
+                  <select
+                    value={createForm.type_id}
+                    onChange={(event) => handleCreateChange("type_id", event.target.value)}
+                    className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+                    required
+                  >
+                    <option value="">Sélectionner</option>
+                    {dressTypes.map((type) => (
+                      <option key={type.id} value={type.id}>
+                        {type.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <Label>Taille</Label>
+                  <select
+                    value={createForm.size_id}
+                    onChange={(event) => handleCreateChange("size_id", event.target.value)}
+                    className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+                    required
+                  >
+                    <option value="">Sélectionner</option>
+                    {dressSizes.map((size) => (
+                      <option key={size.id} value={size.id}>
+                        {size.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <Label>État</Label>
+                  <select
+                    value={createForm.condition_id}
+                    onChange={(event) => handleCreateChange("condition_id", event.target.value)}
+                    className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+                    required
+                  >
+                    <option value="">Sélectionner</option>
+                    {dressConditions.map((condition) => (
+                      <option key={condition.id} value={condition.id}>
+                        {condition.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <Label>Couleur</Label>
+                  <select
+                    value={createForm.color_id}
+                    onChange={(event) => handleCreateChange("color_id", event.target.value)}
+                    className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+                  >
+                    <option value="">Aucune</option>
+                    {dressColors.map((color) => (
+                      <option key={color.id} value={color.id}>
+                        {color.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Section Images */}
+          <div className="rounded-2xl bg-white shadow-theme-sm ring-1 ring-gray-200/70 dark:bg-white/[0.03] dark:ring-white/10">
+            <div className="overflow-hidden rounded-t-2xl border-b border-gray-200 bg-gradient-to-r from-pink-50/80 to-white/50 p-5 dark:border-gray-800 dark:from-pink-950/10 dark:to-white/[0.01]">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <svg className="h-5 w-5 text-pink-600 dark:text-pink-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  <div>
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">
+                      Images ({createImages.length}/{MAX_IMAGES})
+                    </h3>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">
+                      Téléversement après validation du formulaire
+                    </p>
+                  </div>
+                </div>
+                {(createUploadingImages || creating) && (
+                  <span className="text-xs text-pink-600 dark:text-pink-400 animate-pulse">
+                    Téléversement en cours...
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="space-y-5 p-6">
+              {createImages.length ? (
+                <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+                  {createImages.map((item) => (
+                    <div key={item.preview} className="relative overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
+                      <img src={item.preview} alt="Prévisualisation" className="h-40 w-full object-cover" loading="lazy" />
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveCreateImage(item.preview)}
+                        disabled={createUploadingImages || creating}
+                        className="absolute right-2 top-2 inline-flex size-8 items-center justify-center rounded-full bg-white/90 text-gray-600 shadow-theme-xs transition hover:bg-error-50 hover:text-error-600 dark:bg-gray-900/90 dark:text-gray-300"
+                      >
+                        <TrashBinIcon className="size-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-500 dark:border-gray-700 dark:bg-white/[0.02] dark:text-gray-400">
+                  Aucune image sélectionnée pour l'instant. Elles seront importées après la création.
+                </div>
+              )}
+
+              <div
+                {...getCreateRootProps()}
+                className={`rounded-xl border border-dashed px-6 py-8 text-center transition ${
+                  isCreateDragActive
+                    ? "border-brand-500 bg-brand-50/60 dark:border-brand-500/60 dark:bg-brand-500/10"
+                    : "border-gray-300 bg-gray-50 dark:border-gray-700 dark:bg-white/[0.02]"
+                } ${createImageDropDisabled ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:border-brand-500"}`}
+              >
+                <input {...getCreateInputProps()} />
+                <p className="text-sm text-gray-600 dark:text-gray-300">
+                  Glissez-déposez vos images ou cliquez pour sélectionner des fichiers.
+                </p>
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  Formats acceptés : JPG, PNG, WebP, HEIC. Téléversement après validation du formulaire.
+                </p>
+              </div>
             </div>
           </div>
 
@@ -2969,89 +3068,230 @@ export default function Catalogue() {
             <SpinnerOne />
           </div>
         ) : (
-          <div className="space-y-8">
-            <CardThree
-              title={viewDress.name}
-              subtitle={viewDress.reference ? `Réf. ${viewDress.reference}` : undefined}
-              description={
-                viewDress.type_description ||
-                [viewDress.type_name, viewDress.condition_name].filter(Boolean).join(" • ") ||
-                undefined
-              }
-              images={viewDress.images}
-              fallbackImage={FALLBACK_IMAGE}
-              infoItems={[
-                { label: "Type", value: viewDress.type_name ?? "-" },
-                { label: "Taille", value: viewDress.size_name ?? "-" },
-                { label: "État", value: viewDress.condition_name ?? "-" },
-                {
-                  label: "Couleur",
-                  value: <ColorSwatch hex={viewDress.hex_code} name={viewDress.color_name} />,
-                },
-                {
-                  label: "Prix location / jour TTC",
-                  value: formatCurrency(viewDress.price_per_day_ttc),
-                },
-              ]}
-              badges={
-                <div className="flex flex-wrap gap-2">
+          <div className="space-y-6">
+            {/* Section En-tête */}
+            <div className="rounded-2xl bg-white shadow-theme-sm ring-1 ring-gray-200/70 dark:bg-white/[0.03] dark:ring-white/10">
+              <div className="overflow-hidden rounded-t-2xl border-b border-gray-200 bg-gradient-to-r from-purple-50/80 to-white/50 p-5 dark:border-gray-800 dark:from-purple-950/10 dark:to-white/[0.01]">
+                <div className="flex items-center gap-2">
+                  <svg className="h-5 w-5 text-purple-600 dark:text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div>
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">
+                      Informations de la robe
+                    </h3>
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-4 p-6">
+                <div className="flex items-center gap-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    Statut
+                  </p>
                   {viewDress.deleted_at ? (
                     <Badge variant="light" color="warning" size="sm">
                       Désactivée
                     </Badge>
-                  ) : null}
-                </div>
-              }
-              overlayBadges={
-                <div className="flex flex-wrap items-center justify-end gap-2">
-                  {isDressNew(viewDress.created_at) ? (
+                  ) : (
+                    <Badge variant="light" color="success" size="sm">
+                      Active
+                    </Badge>
+                  )}
+                  {isDressNew(viewDress.created_at) && (
                     <Badge variant="solid" color="success" size="sm">
                       Nouveau
                     </Badge>
-                  ) : null}
-                  {viewDress.type_name ? (
-                    <Badge variant="solid" color="primary" size="sm">
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                    {viewDress.name}
+                  </h2>
+                  {viewDress.reference && (
+                    <div className="flex items-center gap-2">
+                      <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md bg-purple-100 dark:bg-purple-900/30">
+                        <svg className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
+                        </svg>
+                      </div>
+                      <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                        Réf. {viewDress.reference}
+                      </span>
+                    </div>
+                  )}
+                  {viewDress.type_name && (
+                    <div className="inline-flex items-center gap-1.5 rounded-full bg-purple-50 px-3 py-1 text-xs font-medium text-purple-700 dark:bg-purple-900/20 dark:text-purple-400">
+                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                      </svg>
                       {viewDress.type_name}
-                    </Badge>
-                  ) : null}
+                    </div>
+                  )}
                 </div>
-              }
-              footer={null}
-              imageClassName="w-full h-80 object-contain bg-white"
-            />
+              </div>
+            </div>
 
-            <div className="rounded-xl border border-gray-200 bg-white/60 p-6 dark:border-gray-800 dark:bg-white/[0.02]">
-              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Métadonnées</h3>
-              <dl className="mt-3 grid gap-4 text-sm text-gray-600 dark:text-gray-300 sm:grid-cols-2">
-                <div>
-                  <dt className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    Créée le
-                  </dt>
-                  <dd>{formatDateTime(viewDress.created_at)}</dd>
-                </div>
-                {viewDress.created_by && (
+            {/* Section Images */}
+            <div className="rounded-2xl bg-white shadow-theme-sm ring-1 ring-gray-200/70 dark:bg-white/[0.03] dark:ring-white/10">
+              <div className="overflow-hidden rounded-t-2xl border-b border-gray-200 bg-gradient-to-r from-pink-50/80 to-white/50 p-5 dark:border-gray-800 dark:from-pink-950/10 dark:to-white/[0.01]">
+                <div className="flex items-center gap-2">
+                  <svg className="h-5 w-5 text-pink-600 dark:text-pink-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
                   <div>
-                    <dt className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                      Créé par
-                    </dt>
-                    <dd>{getUserFullName(viewDress.created_by)}</dd>
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">
+                      Galerie d'images
+                    </h3>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">
+                      Visuels de la robe
+                    </p>
                   </div>
-                )}
-                <div>
-                  <dt className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    Mise à jour le
-                  </dt>
-                  <dd>{formatDateTime(viewDress.updated_at)}</dd>
                 </div>
-                {viewDress.updated_by && (
+              </div>
+              <div className="p-6">
+                <CardThree
+                  title=""
+                  description={
+                    viewDress.type_description ||
+                    [viewDress.type_name, viewDress.condition_name].filter(Boolean).join(" • ") ||
+                    undefined
+                  }
+                  images={viewDress.images}
+                  fallbackImage={FALLBACK_IMAGE}
+                  footer={null}
+                  imageClassName="w-full h-96 object-contain bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800"
+                />
+              </div>
+            </div>
+
+            {/* Section Tarification */}
+            <div className="rounded-2xl bg-white shadow-theme-sm ring-1 ring-gray-200/70 dark:bg-white/[0.03] dark:ring-white/10">
+              <div className="overflow-hidden rounded-t-2xl border-b border-gray-200 bg-gradient-to-r from-emerald-50/80 to-white/50 p-5 dark:border-gray-800 dark:from-emerald-950/10 dark:to-white/[0.01]">
+                <div className="flex items-center gap-2">
+                  <svg className="h-5 w-5 text-emerald-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
                   <div>
-                    <dt className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                      Mise à jour par
-                    </dt>
-                    <dd>{getUserFullName(viewDress.updated_by)}</dd>
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">
+                      Tarification
+                    </h3>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">
+                      Prix de location par jour
+                    </p>
                   </div>
-                )}
-              </dl>
+                </div>
+              </div>
+              <div className="p-6">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="rounded-xl border border-gray-200 bg-gradient-to-br from-emerald-50/50 to-white p-4 dark:border-gray-800 dark:from-emerald-950/10 dark:to-white/[0.02]">
+                    <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Prix par jour TTC</p>
+                    <p className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{formatCurrency(viewDress.price_per_day_ttc)}</p>
+                  </div>
+                  <div className="rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50/50 to-white p-4 dark:border-gray-800 dark:from-white/[0.02] dark:to-white/[0.01]">
+                    <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Prix par jour HT</p>
+                    <p className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{formatCurrency(viewDress.price_per_day_ht)}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Section Caractéristiques */}
+            <div className="rounded-2xl bg-white shadow-theme-sm ring-1 ring-gray-200/70 dark:bg-white/[0.03] dark:ring-white/10">
+              <div className="overflow-hidden rounded-t-2xl border-b border-gray-200 bg-gradient-to-r from-blue-50/80 to-white/50 p-5 dark:border-gray-800 dark:from-blue-950/10 dark:to-white/[0.01]">
+                <div className="flex items-center gap-2">
+                  <svg className="h-5 w-5 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                  </svg>
+                  <div>
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">
+                      Caractéristiques
+                    </h3>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">
+                      Détails de la robe
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="p-6">
+                <div className="rounded-xl bg-gray-50/80 p-4 dark:bg-white/5">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="flex flex-col gap-1">
+                      <dt className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Type</dt>
+                      <dd className="text-sm font-semibold text-gray-900 dark:text-white">{viewDress.type_name ?? "-"}</dd>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <dt className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Taille</dt>
+                      <dd className="text-sm font-semibold text-gray-900 dark:text-white">{viewDress.size_name ?? "-"}</dd>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <dt className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">État</dt>
+                      <dd className="text-sm font-semibold text-gray-900 dark:text-white">{viewDress.condition_name ?? "-"}</dd>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <dt className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Couleur</dt>
+                      <dd className="text-sm font-semibold text-gray-900 dark:text-white">
+                        <ColorSwatch hex={viewDress.hex_code} name={viewDress.color_name} />
+                      </dd>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Section Métadonnées */}
+            <div className="rounded-2xl bg-white shadow-theme-sm ring-1 ring-gray-200/70 dark:bg-white/[0.03] dark:ring-white/10">
+              <div className="overflow-hidden rounded-t-2xl border-b border-gray-200 bg-gradient-to-r from-gray-50/80 to-white/50 p-5 dark:border-gray-800 dark:from-gray-800/10 dark:to-white/[0.01]">
+                <button
+                  onClick={() => {
+                    const current = document.getElementById('dress-metadata-section');
+                    if (current) {
+                      const isHidden = current.classList.contains('hidden');
+                      if (isHidden) {
+                        current.classList.remove('hidden');
+                      } else {
+                        current.classList.add('hidden');
+                      }
+                    }
+                  }}
+                  className="flex w-full items-center justify-between text-left transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <svg className="h-5 w-5 text-gray-600 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">Métadonnées</h3>
+                  </div>
+                  <svg className="h-5 w-5 text-gray-500 transition-transform dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+              </div>
+              <div id="dress-metadata-section" className="hidden">
+                <div className="p-6">
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Créée le</p>
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white">{formatDateTime(viewDress.created_at)}</p>
+                    </div>
+                    {viewDress.created_by && (
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Créée par</p>
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white">{getUserFullName(viewDress.created_by)}</p>
+                      </div>
+                    )}
+                    <div className="space-y-1">
+                      <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Mise à jour le</p>
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white">{formatDateTime(viewDress.updated_at)}</p>
+                    </div>
+                    {viewDress.updated_by && (
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Mise à jour par</p>
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white">{getUserFullName(viewDress.updated_by)}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -3070,194 +3310,271 @@ export default function Catalogue() {
           </div>
         ) : (
           <form className="space-y-6" onSubmit={handleEditSubmit}>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <Label>Nom</Label>
-                <Input
-                  value={editForm.name}
-                  onChange={(event) => handleEditChange("name", event.target.value)}
-                  required
-                />
-              </div>
-              <div>
-                <Label>Référence</Label>
-                <div className="relative">
-                  <Input
-                    value={editForm.reference}
-                    onChange={(event) => handleEditChange("reference", event.target.value)}
-                    required
-                    className="pr-10"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => handleEditChange("reference", generateReference())}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-brand-600 hover:text-brand-700 transition-colors"
-                    title="Générer une référence automatique"
-                  >
-                    <FaBarcode size={18} />
-                  </button>
+            {/* Section Informations générales */}
+            <div className="rounded-2xl bg-white shadow-theme-sm ring-1 ring-gray-200/70 dark:bg-white/[0.03] dark:ring-white/10">
+              <div className="overflow-hidden rounded-t-2xl border-b border-gray-200 bg-gradient-to-r from-purple-50/80 to-white/50 p-5 dark:border-gray-800 dark:from-purple-950/10 dark:to-white/[0.01]">
+                <div className="flex items-center gap-2">
+                  <svg className="h-5 w-5 text-purple-600 dark:text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div>
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">
+                      Informations générales
+                    </h3>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">
+                      Nom et référence de la robe
+                    </p>
+                  </div>
                 </div>
               </div>
-              <div>
-                <Label>Prix HT (€)</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={editForm.price_ht}
-                  disabled
-                  className="bg-gray-100 cursor-not-allowed"
-                />
-              </div>
-              <div>
-                <Label>Prix TTC (€)</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={editForm.price_ttc}
-                  onChange={(event) => handleEditChange("price_ttc", event.target.value)}
-                  required
-                />
-              </div>
-              <div>
-                <Label>Location / jour HT (€)</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={editForm.price_per_day_ht}
-                  disabled
-                  className="bg-gray-100 cursor-not-allowed"
-                />
-              </div>
-              <div>
-                <Label>Location / jour TTC (€)</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={editForm.price_per_day_ttc}
-                  onChange={(event) => handleEditChange("price_per_day_ttc", event.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <Label>Type</Label>
-                <select
-                  value={editForm.type_id}
-                  onChange={(event) => handleEditChange("type_id", event.target.value)}
-                  className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
-                  required
-                >
-                  <option value="">Sélectionner</option>
-                  {dressTypes.map((type) => (
-                    <option key={type.id} value={type.id}>
-                      {type.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <Label>Taille</Label>
-                <select
-                  value={editForm.size_id}
-                  onChange={(event) => handleEditChange("size_id", event.target.value)}
-                  className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
-                  required
-                >
-                  <option value="">Sélectionner</option>
-                  {dressSizes.map((size) => (
-                    <option key={size.id} value={size.id}>
-                      {size.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <Label>État</Label>
-                <select
-                  value={editForm.condition_id}
-                  onChange={(event) => handleEditChange("condition_id", event.target.value)}
-                  className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
-                  required
-                >
-                  <option value="">Sélectionner</option>
-                  {dressConditions.map((condition) => (
-                    <option key={condition.id} value={condition.id}>
-                      {condition.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <Label>Couleur</Label>
-                <select
-                  value={editForm.color_id}
-                  onChange={(event) => handleEditChange("color_id", event.target.value)}
-                  className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
-                >
-                  <option value="">Aucune</option>
-                  {dressColors.map((color) => (
-                    <option key={color.id} value={color.id}>
-                      {color.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label>
-                  Images ({editForm.images.length}/{MAX_IMAGES})
-                </Label>
-                {editUploadingImages ? (
-                  <span className="text-xs text-gray-500 dark:text-gray-400">
-                    Téléversement en cours...
-                  </span>
-                ) : null}
-              </div>
-
-              {editForm.images.length ? (
-                <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
-                  {editForm.images.map((image) => (
-                    <div key={image} className="relative overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
-                      <img src={image} alt="Robe" className="h-40 w-full object-cover" loading="lazy" />
+              <div className="space-y-5 p-6">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <Label>Nom</Label>
+                    <Input
+                      value={editForm.name}
+                      onChange={(event) => handleEditChange("name", event.target.value)}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label>Référence</Label>
+                    <div className="relative">
+                      <Input
+                        value={editForm.reference}
+                        onChange={(event) => handleEditChange("reference", event.target.value)}
+                        required
+                        className="pr-10"
+                      />
                       <button
                         type="button"
-                        onClick={() => handleRemoveEditImage(image)}
-                        disabled={editUploadingImages}
-                        className="absolute right-2 top-2 inline-flex size-8 items-center justify-center rounded-full bg-white/90 text-gray-600 shadow-theme-xs transition hover:bg-error-50 hover:text-error-600 dark:bg-gray-900/90 dark:text-gray-300"
+                        onClick={() => handleEditChange("reference", generateReference())}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-brand-600 hover:text-brand-700 transition-colors"
+                        title="Générer une référence automatique"
                       >
-                        <TrashBinIcon className="size-4" />
+                        <FaBarcode size={18} />
                       </button>
                     </div>
-                  ))}
+                  </div>
                 </div>
-              ) : (
-                <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-500 dark:border-gray-700 dark:bg-white/[0.02] dark:text-gray-400">
-                  Aucune image pour l'instant. Ajoutez-en pour valoriser la robe.
-                </div>
-              )}
+              </div>
+            </div>
 
-              <div
-                {...getEditRootProps()}
-                className={`rounded-xl border border-dashed px-6 py-8 text-center transition ${
-                  isEditDragActive
-                    ? "border-brand-500 bg-brand-50/60 dark:border-brand-500/60 dark:bg-brand-500/10"
-                    : "border-gray-300 bg-gray-50 dark:border-gray-700 dark:bg-white/[0.02]"
-                } ${editImageDropDisabled ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:border-brand-500"}`}
-              >
-                <input {...getEditInputProps()} />
-                <p className="text-sm text-gray-600 dark:text-gray-300">
-                  Glissez-déposez vos images ou cliquez pour sélectionner des fichiers.
-                </p>
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  Formats acceptés : JPG, PNG, WebP, HEIC. Compression automatique pour optimiser le stockage S3.
-                </p>
+            {/* Section Tarification */}
+            <div className="rounded-2xl bg-white shadow-theme-sm ring-1 ring-gray-200/70 dark:bg-white/[0.03] dark:ring-white/10">
+              <div className="overflow-hidden rounded-t-2xl border-b border-gray-200 bg-gradient-to-r from-emerald-50/80 to-white/50 p-5 dark:border-gray-800 dark:from-emerald-950/10 dark:to-white/[0.01]">
+                <div className="flex items-center gap-2">
+                  <svg className="h-5 w-5 text-emerald-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div>
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">
+                      Tarification
+                    </h3>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">
+                      Prix de vente et location par jour
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-5 p-6">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <Label>Prix TTC (€)</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={editForm.price_ttc}
+                      onChange={(event) => handleEditChange("price_ttc", event.target.value)}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label>Prix HT (€)</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={editForm.price_ht}
+                      disabled
+                      className="bg-gray-100 cursor-not-allowed dark:bg-gray-800"
+                    />
+                  </div>
+                  <div>
+                    <Label>Location / jour TTC (€)</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={editForm.price_per_day_ttc}
+                      onChange={(event) => handleEditChange("price_per_day_ttc", event.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <Label>Location / jour HT (€)</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={editForm.price_per_day_ht}
+                      disabled
+                      className="bg-gray-100 cursor-not-allowed dark:bg-gray-800"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Section Caractéristiques */}
+            <div className="rounded-2xl bg-white shadow-theme-sm ring-1 ring-gray-200/70 dark:bg-white/[0.03] dark:ring-white/10">
+              <div className="overflow-hidden rounded-t-2xl border-b border-gray-200 bg-gradient-to-r from-blue-50/80 to-white/50 p-5 dark:border-gray-800 dark:from-blue-950/10 dark:to-white/[0.01]">
+                <div className="flex items-center gap-2">
+                  <svg className="h-5 w-5 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                  </svg>
+                  <div>
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">
+                      Caractéristiques
+                    </h3>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">
+                      Type, taille, état et couleur
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-5 p-6">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <Label>Type</Label>
+                    <select
+                      value={editForm.type_id}
+                      onChange={(event) => handleEditChange("type_id", event.target.value)}
+                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+                      required
+                    >
+                      <option value="">Sélectionner</option>
+                      {dressTypes.map((type) => (
+                        <option key={type.id} value={type.id}>
+                          {type.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <Label>Taille</Label>
+                    <select
+                      value={editForm.size_id}
+                      onChange={(event) => handleEditChange("size_id", event.target.value)}
+                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+                      required
+                    >
+                      <option value="">Sélectionner</option>
+                      {dressSizes.map((size) => (
+                        <option key={size.id} value={size.id}>
+                          {size.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <Label>État</Label>
+                    <select
+                      value={editForm.condition_id}
+                      onChange={(event) => handleEditChange("condition_id", event.target.value)}
+                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+                      required
+                    >
+                      <option value="">Sélectionner</option>
+                      {dressConditions.map((condition) => (
+                        <option key={condition.id} value={condition.id}>
+                          {condition.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <Label>Couleur</Label>
+                    <select
+                      value={editForm.color_id}
+                      onChange={(event) => handleEditChange("color_id", event.target.value)}
+                      className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+                    >
+                      <option value="">Aucune</option>
+                      {dressColors.map((color) => (
+                        <option key={color.id} value={color.id}>
+                          {color.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Section Images */}
+            <div className="rounded-2xl bg-white shadow-theme-sm ring-1 ring-gray-200/70 dark:bg-white/[0.03] dark:ring-white/10">
+              <div className="overflow-hidden rounded-t-2xl border-b border-gray-200 bg-gradient-to-r from-pink-50/80 to-white/50 p-5 dark:border-gray-800 dark:from-pink-950/10 dark:to-white/[0.01]">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <svg className="h-5 w-5 text-pink-600 dark:text-pink-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <div>
+                      <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">
+                        Images ({editForm.images.length}/{MAX_IMAGES})
+                      </h3>
+                      <p className="text-xs text-gray-600 dark:text-gray-400">
+                        Compression automatique pour optimiser le stockage
+                      </p>
+                    </div>
+                  </div>
+                  {editUploadingImages && (
+                    <span className="text-xs text-pink-600 dark:text-pink-400 animate-pulse">
+                      Téléversement en cours...
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="space-y-5 p-6">
+                {editForm.images.length ? (
+                  <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+                    {editForm.images.map((image) => (
+                      <div key={image} className="relative overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
+                        <img src={image} alt="Robe" className="h-40 w-full object-cover" loading="lazy" />
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveEditImage(image)}
+                          disabled={editUploadingImages}
+                          className="absolute right-2 top-2 inline-flex size-8 items-center justify-center rounded-full bg-white/90 text-gray-600 shadow-theme-xs transition hover:bg-error-50 hover:text-error-600 dark:bg-gray-900/90 dark:text-gray-300"
+                        >
+                          <TrashBinIcon className="size-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-500 dark:border-gray-700 dark:bg-white/[0.02] dark:text-gray-400">
+                    Aucune image pour l'instant. Ajoutez-en pour valoriser la robe.
+                  </div>
+                )}
+
+                <div
+                  {...getEditRootProps()}
+                  className={`rounded-xl border border-dashed px-6 py-8 text-center transition ${
+                    isEditDragActive
+                      ? "border-brand-500 bg-brand-50/60 dark:border-brand-500/60 dark:bg-brand-500/10"
+                      : "border-gray-300 bg-gray-50 dark:border-gray-700 dark:bg-white/[0.02]"
+                  } ${editImageDropDisabled ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:border-brand-500"}`}
+                >
+                  <input {...getEditInputProps()} />
+                  <p className="text-sm text-gray-600 dark:text-gray-300">
+                    Glissez-déposez vos images ou cliquez pour sélectionner des fichiers.
+                  </p>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    Formats acceptés : JPG, PNG, WebP, HEIC. Compression automatique pour optimiser le stockage S3.
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -3292,14 +3609,25 @@ export default function Catalogue() {
         widthClassName="w-full max-w-4xl"
       >
         {contractForm ? (
-          <form className="space-y-8" onSubmit={handleContractSubmit}>
-            {/* Robe sélectionnée - Carte visuelle */}
+          <form className="space-y-6" onSubmit={handleContractSubmit}>
+            {/* Robe sélectionnée - Style amélioré */}
             {contractDrawer.dress && (
-              <div className="overflow-hidden rounded-2xl border border-gray-200 bg-gradient-to-br from-white to-gray-50/50 shadow-theme-xs dark:border-gray-800 dark:from-white/[0.02] dark:to-white/[0.01]">
+              <div className="overflow-hidden rounded-2xl bg-white shadow-theme-sm ring-1 ring-gray-200/70 dark:bg-white/[0.03] dark:ring-white/10">
+                <div className="border-b border-gray-200 bg-gradient-to-r from-purple-50/80 to-white/50 p-5 dark:border-gray-800 dark:from-purple-950/10 dark:to-white/[0.01]">
+                  <div className="flex items-center gap-2">
+                    <svg className="h-5 w-5 text-purple-600 dark:text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                    </svg>
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">
+                      Robe sélectionnée
+                    </h3>
+                  </div>
+                </div>
+
                 <div className="flex flex-col gap-6 p-6 sm:flex-row sm:items-start">
                   {/* Image de la robe */}
                   <div className="shrink-0">
-                    <div className="relative h-48 w-full overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-200 dark:bg-gray-900 dark:ring-gray-800 sm:h-32 sm:w-32">
+                    <div className="relative h-48 w-full overflow-hidden rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 shadow-sm ring-1 ring-gray-200/70 dark:from-gray-800 dark:to-gray-900 dark:ring-gray-700 sm:h-40 sm:w-40">
                       <img
                         src={contractDrawer.dress.images?.[0] || FALLBACK_IMAGE}
                         alt={contractDrawer.dress.name}
@@ -3310,188 +3638,207 @@ export default function Catalogue() {
 
                   {/* Informations de la robe */}
                   <div className="flex-1 space-y-4">
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    <div className="space-y-2">
+                      <h4 className="text-xl font-bold text-gray-900 dark:text-white">
                         {contractDrawer.dress.name}
-                      </h3>
+                      </h4>
                       {contractDrawer.dress.reference && (
-                        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                          Réf. {contractDrawer.dress.reference}
-                        </p>
+                        <div className="flex items-center gap-2">
+                          <div className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded bg-purple-100 dark:bg-purple-900/30">
+                            <svg className="h-3 w-3 text-purple-600 dark:text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
+                            </svg>
+                          </div>
+                          <span className="text-sm font-semibold text-gray-600 dark:text-gray-400">
+                            Réf. {contractDrawer.dress.reference}
+                          </span>
+                        </div>
                       )}
                     </div>
 
-                    <dl className="grid gap-3 text-sm sm:grid-cols-2">
-                      {contractDrawer.dress.type_name && (
-                        <div>
-                          <dt className="text-xs font-medium text-gray-500 dark:text-gray-400">Type</dt>
-                          <dd className="mt-0.5 font-medium text-gray-900 dark:text-white">
-                            {contractDrawer.dress.type_name}
-                          </dd>
-                        </div>
-                      )}
-                      {contractDrawer.dress.size_name && (
-                        <div>
-                          <dt className="text-xs font-medium text-gray-500 dark:text-gray-400">Taille</dt>
-                          <dd className="mt-0.5 font-medium text-gray-900 dark:text-white">
-                            {contractDrawer.dress.size_name}
-                          </dd>
-                        </div>
-                      )}
-                      {contractDrawer.dress.color_name && (
-                        <div>
-                          <dt className="text-xs font-medium text-gray-500 dark:text-gray-400">Couleur</dt>
-                          <dd className="mt-0.5 flex items-center gap-2">
-                            {contractDrawer.dress.hex_code && (
-                              <span
-                                className="inline-block h-4 w-4 rounded-full border border-gray-300 shadow-sm dark:border-gray-700"
-                                style={{ backgroundColor: contractDrawer.dress.hex_code }}
-                              />
-                            )}
-                            <span className="font-medium text-gray-900 dark:text-white">
-                              {contractDrawer.dress.color_name}
-                            </span>
-                          </dd>
-                        </div>
-                      )}
-                      {contractDrawer.dress.condition_name && (
-                        <div>
-                          <dt className="text-xs font-medium text-gray-500 dark:text-gray-400">État</dt>
-                          <dd className="mt-0.5 font-medium text-gray-900 dark:text-white">
-                            {contractDrawer.dress.condition_name}
-                          </dd>
-                        </div>
-                      )}
-                    </dl>
+                    <div className="rounded-xl bg-gray-50/80 p-4 dark:bg-white/5">
+                      <dl className="grid gap-3 text-sm sm:grid-cols-2">
+                        {contractDrawer.dress.type_name && (
+                          <div className="flex flex-col gap-1">
+                            <dt className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Type</dt>
+                            <dd className="font-semibold text-gray-900 dark:text-white">
+                              {contractDrawer.dress.type_name}
+                            </dd>
+                          </div>
+                        )}
+                        {contractDrawer.dress.size_name && (
+                          <div className="flex flex-col gap-1">
+                            <dt className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Taille</dt>
+                            <dd className="font-semibold text-gray-900 dark:text-white">
+                              {contractDrawer.dress.size_name}
+                            </dd>
+                          </div>
+                        )}
+                        {contractDrawer.dress.color_name && (
+                          <div className="flex flex-col gap-1">
+                            <dt className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Couleur</dt>
+                            <dd className="flex items-center gap-2">
+                              {contractDrawer.dress.hex_code && (
+                                <span
+                                  className="inline-block h-4 w-4 rounded-full border border-gray-300 shadow-sm dark:border-gray-600"
+                                  style={{ backgroundColor: contractDrawer.dress.hex_code }}
+                                />
+                              )}
+                              <span className="font-semibold text-gray-900 dark:text-white">
+                                {contractDrawer.dress.color_name}
+                              </span>
+                            </dd>
+                          </div>
+                        )}
+                        {contractDrawer.dress.condition_name && (
+                          <div className="flex flex-col gap-1">
+                            <dt className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">État</dt>
+                            <dd className="font-semibold text-gray-900 dark:text-white">
+                              {contractDrawer.dress.condition_name}
+                            </dd>
+                          </div>
+                        )}
+                      </dl>
+                    </div>
                   </div>
                 </div>
               </div>
             )}
 
-            <section className="space-y-4 rounded-2xl border border-gray-200 bg-white/80 p-6 shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.02]">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="space-y-1">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    Contrat
-                  </p>
-                  <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                    {contractForm.contractNumber}
-                  </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {contractDrawer.mode === "daily" ? "Location journalière" : "Location forfaitaire"}
-                  </p>
+            {/* Section Informations du contrat */}
+            <div className="overflow-hidden rounded-2xl bg-white shadow-theme-sm ring-1 ring-gray-200/70 dark:bg-white/[0.03] dark:ring-white/10">
+              <div className="border-b border-gray-200 bg-gradient-to-r from-blue-50/80 to-white/50 p-5 dark:border-gray-800 dark:from-blue-950/10 dark:to-white/[0.01]">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <svg className="h-5 w-5 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">
+                        Contrat
+                      </h3>
+                      <Badge variant="light" color="warning" size="sm">
+                        En attente
+                      </Badge>
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                        {contractForm.contractNumber}
+                      </p>
+                      <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                        {contractDrawer.mode === "daily" ? "Location journalière" : "Location forfaitaire"}
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <Badge variant="light" color="warning" size="sm">
-                  En attente
-                </Badge>
               </div>
-              <dl className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    Type de contrat
-                  </dt>
-                  <dd className="mt-1 text-sm text-gray-800 dark:text-gray-200">
-                    {contractTypeLabel ?? "Non défini"}
-                  </dd>
+
+              <div className="space-y-4 p-6">
+                <div className="grid gap-4 border-t border-gray-200 pt-4 dark:border-gray-800 md:grid-cols-3">
+                  <div className="space-y-1">
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Type de contrat</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">
+                      {contractTypeLabel ?? "Non défini"}
+                    </p>
+                  </div>
+                  {contractDrawer.mode === "package" ? (
+                    <>
+                      <div className="space-y-1">
+                        <p className="text-xs text-gray-500 dark:text-gray-400">Forfait</p>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">
+                          {selectedPackage ? selectedPackage.name : "Non sélectionné"}
+                        </p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xs text-gray-500 dark:text-gray-400">Tarif du forfait TTC</p>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">
+                          {selectedPackage ? formatCurrency(selectedPackage.price_ttc) : "—"}
+                        </p>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="space-y-1">
+                        <p className="text-xs text-gray-500 dark:text-gray-400">Tarif journalier TTC</p>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">
+                          {formatCurrency(pricePerDay.ttc)}
+                        </p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xs text-gray-500 dark:text-gray-400">Tarif journalier HT</p>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">
+                          {formatCurrency(pricePerDay.ht)}
+                        </p>
+                      </div>
+                    </>
+                  )}
+                  <div className="space-y-1">
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Période</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">
+                      {contractDateRange
+                        ? `${contractDateRange[0].toLocaleDateString("fr-FR", { dateStyle: "short" })} → ${contractDateRange[1].toLocaleDateString("fr-FR", { dateStyle: "short" })}`
+                        : "À définir"}
+                      {rentalDays && contractDrawer.mode === "daily"
+                        ? ` (${rentalDays}j)`
+                        : ""}
+                    </p>
+                  </div>
                 </div>
-                {contractDrawer.mode === "package" ? (
-                  <>
-                    <div>
-                      <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                        Forfait
-                      </dt>
-                      <dd className="mt-1 text-sm text-gray-800 dark:text-gray-200">
-                        {selectedPackage ? selectedPackage.name : "Non sélectionné"}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                        Période
-                      </dt>
-                      <dd className="mt-1 text-sm text-gray-800 dark:text-gray-200">
-                        {contractDateRange
-                          ? `${contractDateRange[0].toLocaleDateString("fr-FR", { dateStyle: "medium" })} → ${contractDateRange[1].toLocaleDateString("fr-FR", { dateStyle: "medium" })}`
-                          : "À définir"}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                        Tarif du forfait TTC
-                      </dt>
-                      <dd className="mt-1 text-sm text-gray-800 dark:text-gray-200">
-                        {selectedPackage ? formatCurrency(selectedPackage.price_ttc) : "—"}
-                      </dd>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div>
-                      <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                        Période
-                      </dt>
-                      <dd className="mt-1 text-sm text-gray-800 dark:text-gray-200">
-                        {contractDateRange
-                          ? `${contractDateRange[0].toLocaleDateString("fr-FR", { dateStyle: "medium" })} → ${contractDateRange[1].toLocaleDateString("fr-FR", { dateStyle: "medium" })}`
-                          : "À définir"}
-                        {rentalDays
-                          ? ` • ${rentalDays} jour${rentalDays > 1 ? "s" : ""}`
-                          : ""}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                        Tarif journalier TTC
-                      </dt>
-                      <dd className="mt-1 text-sm text-gray-800 dark:text-gray-200">
-                        {formatCurrency(pricePerDay.ttc)}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                        Tarif journalier HT
-                      </dt>
-                      <dd className="mt-1 text-sm text-gray-800 dark:text-gray-200">
-                        {formatCurrency(pricePerDay.ht)}
-                      </dd>
-                    </div>
-                  </>
-                )}
-              </dl>
-            </section>
+              </div>
+            </div>
 
             {contractDrawer.mode === "package" ? (
-              <section className="space-y-5 rounded-2xl border border-gray-200 bg-white/80 p-6 shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.02]">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div>
-                    <Label>Forfait</Label>
-                    <Select
-                      value={contractForm.packageId ?? ""}
-                      onChange={(value) =>
-                        setContractForm((prev) =>
-                          prev
-                            ? {
-                                ...prev,
-                                packageId: value || null,
-                                packageDressIds: baseDressId ? [baseDressId] : [],
-                              }
-                            : prev,
-                        )
-                      }
-                      options={packageSelectOptions}
-                      placeholder={contractPackagesLoading ? "Chargement..." : "Sélectionner un forfait"}
-                      disabled={contractPackagesLoading || !contractPackages.length}
-                      emptyOptionLabel="Sélectionner un forfait"
-                    />
-                  </div>
-                  <div className="rounded-xl border border-gray-200 bg-gray-50/70 p-4 text-sm text-gray-700 dark:border-gray-700 dark:bg-white/[0.02] dark:text-gray-200">
-                    <p>
-                      Robes incluses : {selectedPackage ? selectedPackage.num_dresses : "-"}
-                    </p>
-                    <p className="mt-1">
-                      Prix : {selectedPackage ? formatCurrency(selectedPackage.price_ttc) : "-"} TTC
-                    </p>
+              <div className="overflow-hidden rounded-2xl bg-white shadow-theme-sm ring-1 ring-gray-200/70 dark:bg-white/[0.03] dark:ring-white/10">
+                <div className="border-b border-gray-200 bg-gradient-to-r from-green-50/80 to-white/50 p-5 dark:border-gray-800 dark:from-green-950/10 dark:to-white/[0.01]">
+                  <div className="flex items-center gap-2">
+                    <svg className="h-5 w-5 text-green-600 dark:text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                    </svg>
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">
+                      Configuration du forfait
+                    </h3>
                   </div>
                 </div>
+
+                <div className="space-y-5 p-6">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <Label>Sélection du forfait</Label>
+                      <Select
+                        value={contractForm.packageId ?? ""}
+                        onChange={(value) =>
+                          setContractForm((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  packageId: value || null,
+                                  packageDressIds: baseDressId ? [baseDressId] : [],
+                                }
+                              : prev,
+                          )
+                        }
+                        options={packageSelectOptions}
+                        placeholder={contractPackagesLoading ? "Chargement..." : "Sélectionner un forfait"}
+                        disabled={contractPackagesLoading || !contractPackages.length}
+                        emptyOptionLabel="Sélectionner un forfait"
+                      />
+                    </div>
+                    <div className="rounded-xl border border-green-200 bg-green-50/70 p-4 dark:border-green-800/50 dark:bg-green-950/20">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="space-y-1 text-sm">
+                          <p className="font-semibold text-gray-900 dark:text-white">
+                            {selectedPackage ? selectedPackage.num_dresses : "-"} robe{selectedPackage && selectedPackage.num_dresses > 1 ? "s" : ""} incluse{selectedPackage && selectedPackage.num_dresses > 1 ? "s" : ""}
+                          </p>
+                          <p className="text-xs text-gray-600 dark:text-gray-400">
+                            Prix forfait
+                          </p>
+                          <p className="text-lg font-bold text-green-700 dark:text-green-400">
+                            {selectedPackage ? formatCurrency(selectedPackage.price_ttc) : "—"}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
 
                 <div className="space-y-4">
                   <div>
@@ -3669,23 +4016,36 @@ export default function Catalogue() {
                     </p>
                   )}
                 </div>
-              </section>
+                </div>
+              </div>
             ) : null}
 
-            <section className="space-y-5 rounded-2xl border border-gray-200 bg-white/80 p-6 shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.02]">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Client</h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Associez un client existant ou créez-en un nouveau.
-                  </p>
+            {/* Section Client */}
+            <div className="overflow-hidden rounded-2xl bg-white shadow-theme-sm ring-1 ring-gray-200/70 dark:bg-white/[0.03] dark:ring-white/10">
+              <div className="border-b border-gray-200 bg-gradient-to-r from-indigo-50/80 to-white/50 p-5 dark:border-gray-800 dark:from-indigo-950/10 dark:to-white/[0.01]">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <svg className="h-5 w-5 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                    <div>
+                      <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">
+                        Client
+                      </h3>
+                      <p className="text-xs text-gray-600 dark:text-gray-400">
+                        Associez un client existant ou créez-en un nouveau
+                      </p>
+                    </div>
+                  </div>
+                  {selectedCustomer ? (
+                    <Button type="button" variant="outline" size="sm" onClick={handleClearSelectedCustomer}>
+                      Changer
+                    </Button>
+                  ) : null}
                 </div>
-                {selectedCustomer ? (
-                  <Button type="button" variant="outline" size="sm" onClick={handleClearSelectedCustomer}>
-                    Changer
-                  </Button>
-                ) : null}
               </div>
+
+              <div className="space-y-5 p-6">
 
               <div className="flex flex-wrap items-center gap-3">
                 <div className="min-w-[220px] flex-1">
@@ -3752,9 +4112,14 @@ export default function Catalogue() {
                 </div>
               ) : null}
 
-              <div className="space-y-3 rounded-xl border border-dashed border-gray-300 bg-gray-50/60 p-4 dark:border-gray-700 dark:bg-white/[0.02]">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium text-gray-700 dark:text-gray-200">Ajouter un client</p>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between rounded-xl border border-dashed border-indigo-300 bg-indigo-50/60 px-4 py-3 dark:border-indigo-700 dark:bg-indigo-500/10">
+                  <div className="flex items-center gap-2">
+                    <svg className="h-4 w-4 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                    </svg>
+                    <p className="text-sm font-medium text-indigo-700 dark:text-indigo-200">Créer un nouveau client</p>
+                  </div>
                   <Button
                     type="button"
                     size="sm"
@@ -3765,51 +4130,92 @@ export default function Catalogue() {
                   </Button>
                 </div>
                 {showCustomerForm ? (
-                  <div className="space-y-4">
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <div>
-                        <Label>Prénom</Label>
-                        <Input
-                          value={customerForm.firstname}
-                          onChange={handleCustomerFormChange("firstname")}
-                          required
-                        />
+                  <div className="space-y-5 rounded-xl border border-indigo-200 bg-white p-5 dark:border-indigo-800 dark:bg-white/[0.02]">
+                    {/* Section Identité */}
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 border-b border-gray-200 pb-2 dark:border-gray-800">
+                        <svg className="h-4 w-4 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                        <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">
+                          Identité
+                        </h4>
                       </div>
-                      <div>
-                        <Label>Nom</Label>
-                        <Input value={customerForm.lastname} onChange={handleCustomerFormChange("lastname")} required />
-                      </div>
-                      <div>
-                        <Label>Email</Label>
-                        <Input
-                          type="email"
-                          value={customerForm.email}
-                          onChange={handleCustomerFormChange("email")}
-                          required
-                        />
-                      </div>
-                      <div>
-                        <Label>Téléphone</Label>
-                        <Input value={customerForm.phone} onChange={handleCustomerFormChange("phone")} />
-                      </div>
-                      <div>
-                        <Label>Ville</Label>
-                        <Input value={customerForm.city} onChange={handleCustomerFormChange("city")} />
-                      </div>
-                      <div>
-                        <Label>Pays</Label>
-                        <Input value={customerForm.country} onChange={handleCustomerFormChange("country")} />
-                      </div>
-                      <div>
-                        <Label>Adresse</Label>
-                        <Input value={customerForm.address} onChange={handleCustomerFormChange("address")} />
-                      </div>
-                      <div>
-                        <Label>Code postal</Label>
-                        <Input value={customerForm.postal_code} onChange={handleCustomerFormChange("postal_code")} />
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <div>
+                          <Label>Prénom</Label>
+                          <Input
+                            value={customerForm.firstname}
+                            onChange={handleCustomerFormChange("firstname")}
+                            required
+                          />
+                        </div>
+                        <div>
+                          <Label>Nom</Label>
+                          <Input value={customerForm.lastname} onChange={handleCustomerFormChange("lastname")} required />
+                        </div>
                       </div>
                     </div>
-                    <div className="flex justify-end gap-3">
+
+                    {/* Section Contact */}
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 border-b border-gray-200 pb-2 dark:border-gray-800">
+                        <svg className="h-4 w-4 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                        <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">
+                          Contact
+                        </h4>
+                      </div>
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <div>
+                          <Label>Email</Label>
+                          <Input
+                            type="email"
+                            value={customerForm.email}
+                            onChange={handleCustomerFormChange("email")}
+                            required
+                          />
+                        </div>
+                        <div>
+                          <Label>Téléphone</Label>
+                          <Input value={customerForm.phone} onChange={handleCustomerFormChange("phone")} />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Section Adresse */}
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 border-b border-gray-200 pb-2 dark:border-gray-800">
+                        <svg className="h-4 w-4 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">
+                          Adresse
+                        </h4>
+                      </div>
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <div className="md:col-span-2">
+                          <Label>Adresse</Label>
+                          <Input value={customerForm.address} onChange={handleCustomerFormChange("address")} />
+                        </div>
+                        <div>
+                          <Label>Code postal</Label>
+                          <Input value={customerForm.postal_code} onChange={handleCustomerFormChange("postal_code")} />
+                        </div>
+                        <div>
+                          <Label>Ville</Label>
+                          <Input value={customerForm.city} onChange={handleCustomerFormChange("city")} />
+                        </div>
+                        <div className="md:col-span-2">
+                          <Label>Pays</Label>
+                          <Input value={customerForm.country} onChange={handleCustomerFormChange("country")} />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end gap-3 border-t border-gray-200 pt-4 dark:border-gray-800">
                       <Button
                         type="button"
                         variant="outline"
@@ -3827,10 +4233,22 @@ export default function Catalogue() {
                   </div>
                 ) : null}
               </div>
-            </section>
+              </div>
+            </div>
 
-            <section className="space-y-4 rounded-2xl border border-gray-200 bg-white/80 p-6 shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.02]">
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Période de location</h3>
+            {/* Section Période de location */}
+            <div className="rounded-2xl bg-white shadow-theme-sm ring-1 ring-gray-200/70 dark:bg-white/[0.03] dark:ring-white/10">
+              <div className="overflow-hidden rounded-t-2xl border-b border-gray-200 bg-gradient-to-r from-amber-50/80 to-white/50 p-5 dark:border-gray-800 dark:from-amber-950/10 dark:to-white/[0.01]">
+                <div className="flex items-center gap-2">
+                  <svg className="h-5 w-5 text-amber-600 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">
+                    Période de location
+                  </h3>
+                </div>
+              </div>
+              <div className="space-y-4 p-6">
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="flex flex-col gap-2">
                   <DatePicker
@@ -3891,10 +4309,22 @@ export default function Catalogue() {
                   </p>
                 </div>
               </div>
-            </section>
+              </div>
+            </div>
 
-            <section className="space-y-4 rounded-2xl border border-gray-200 bg-white/80 p-6 shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.02]">
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Tarification</h3>
+            {/* Section Tarification */}
+            <div className="overflow-hidden rounded-2xl bg-white shadow-theme-sm ring-1 ring-gray-200/70 dark:bg-white/[0.03] dark:ring-white/10">
+              <div className="border-b border-gray-200 bg-gradient-to-r from-emerald-50/80 to-white/50 p-5 dark:border-gray-800 dark:from-emerald-950/10 dark:to-white/[0.01]">
+                <div className="flex items-center gap-2">
+                  <svg className="h-5 w-5 text-emerald-600 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">
+                    Tarification
+                  </h3>
+                </div>
+              </div>
+              <div className="space-y-4 p-6">
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
                   <Label>Prix total TTC</Label>
@@ -3917,12 +4347,13 @@ export default function Catalogue() {
                 </div>
                 <div>
                   <Label>Acompte payé TTC</Label>
-                  <Input
-                    type="number"
-                    step={0.01}
-                    min="0"
+                  <input
+                    type="text"
+                    inputMode="decimal"
                     value={contractForm.depositPaidTTC}
                     onChange={handleDepositPaidTTCChange}
+                    onBlur={handleDepositPaidTTCBlur}
+                    className="h-11 w-full rounded-lg border appearance-none px-4 py-2.5 text-sm shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 bg-transparent text-gray-800 border-gray-300 focus:border-brand-300 focus:ring-brand-500/20 dark:border-gray-700 dark:focus:border-brand-800"
                   />
                 </div>
                 <div>
@@ -3939,17 +4370,18 @@ export default function Catalogue() {
                 </div>
                 <div>
                   <Label>Caution payée TTC</Label>
-                  <Input
-                    type="number"
-                    step={0.01}
-                    min="0"
+                  <input
+                    type="text"
+                    inputMode="decimal"
                     value={contractForm.cautionPaidTTC}
                     onChange={handleCautionPaidChange}
+                    onBlur={handleCautionPaidBlur}
+                    className="h-11 w-full rounded-lg border appearance-none px-4 py-2.5 text-sm shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 bg-transparent text-gray-800 border-gray-300 focus:border-brand-300 focus:ring-brand-500/20 dark:border-gray-700 dark:focus:border-brand-800"
                   />
                 </div>
                 <div>
                   <Label>Caution payée HT</Label>
-                  <Input value={contractForm.cautionPaidHT} readOnly />
+                  <Input value={contractForm.cautionPaidHT} readOnly disabled />
                 </div>
               </div>
               <div className="grid gap-4 md:grid-cols-2">
@@ -3967,11 +4399,21 @@ export default function Catalogue() {
                   <Input value="En attente" disabled />
                 </div>
               </div>
-            </section>
+              </div>
+            </div>
 
-            <section className="space-y-4 rounded-2xl border border-gray-200 bg-white/80 p-6 shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.02]">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Options</h3>
+            {/* Section Options */}
+            <div className="overflow-hidden rounded-2xl bg-white shadow-theme-sm ring-1 ring-gray-200/70 dark:bg-white/[0.03] dark:ring-white/10">
+              <div className="border-b border-gray-200 bg-gradient-to-r from-rose-50/80 to-white/50 p-5 dark:border-gray-800 dark:from-rose-950/10 dark:to-white/[0.01]">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <svg className="h-5 w-5 text-rose-600 dark:text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                    </svg>
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">
+                      Options
+                    </h3>
+                  </div>
                 {addonsLoading ? (
                   <span className="text-xs text-gray-500 dark:text-gray-400">Chargement…</span>
                 ) : null}
@@ -4080,12 +4522,13 @@ export default function Catalogue() {
                     </p>
                   </>
                 ) : (
-                  <p>Aucune option sélectionnée.</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Aucune option sélectionnée.</p>
                 )}
               </div>
-            </section>
+              </div>
+            </div>
 
-            <div className="flex justify-end gap-3 border-t border-gray-200 pt-4 dark:border-gray-800">
+            <div className="flex justify-end gap-3 border-t border-gray-200 pt-6 dark:border-gray-800">
               <Button type="button" variant="outline" onClick={closeContractDrawer}>
                 Annuler
               </Button>
@@ -4105,8 +4548,25 @@ export default function Catalogue() {
           </form>
         ) : (
           <div className="space-y-6">
-            <section className="space-y-4 rounded-2xl border border-gray-200 bg-white/80 p-6 shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.02]">
-              <div className="space-y-3">
+            {/* Section Configuration initiale */}
+            <div className="rounded-2xl bg-white shadow-theme-sm ring-1 ring-gray-200/70 dark:bg-white/[0.03] dark:ring-white/10">
+              <div className="overflow-hidden rounded-t-2xl border-b border-gray-200 bg-gradient-to-r from-blue-50/80 to-white/50 p-5 dark:border-gray-800 dark:from-blue-950/10 dark:to-white/[0.01]">
+                <div className="flex items-center gap-2">
+                  <svg className="h-5 w-5 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                  </svg>
+                  <div>
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">
+                      Configuration du contrat
+                    </h3>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">
+                      Étape 1 sur 2 : Informations de base
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-5 p-6">
                 <div>
                   <Label>Type de contrat</Label>
                   <Select
@@ -4123,6 +4583,7 @@ export default function Catalogue() {
                     }}
                   />
                 </div>
+
                 <div className="space-y-2">
                   <Label>Période de location</Label>
                   <DatePicker
@@ -4141,11 +4602,17 @@ export default function Catalogue() {
                       defaultMinute: 0,
                     }}
                   />
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Choisissez la période avant de sélectionner une robe pour vérifier sa disponibilité.
-                  </p>
+                  <div className="flex items-start gap-2 rounded-lg bg-blue-50 p-3 dark:bg-blue-950/20">
+                    <svg className="mt-0.5 h-4 w-4 flex-shrink-0 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <p className="text-xs text-blue-700 dark:text-blue-300">
+                      Choisissez la période avant de sélectionner une robe pour vérifier sa disponibilité
+                    </p>
+                  </div>
                 </div>
-                <div>
+
+                <div className="space-y-2">
                   <Label>{contractDraft.mode === "package" ? "Robe principale" : "Robe"}</Label>
                   {loading ? (
                     <div className="flex justify-center py-6">
@@ -4159,29 +4626,39 @@ export default function Catalogue() {
                       placeholder="Rechercher une robe..."
                     />
                   ) : (
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Aucune robe disponible pour le moment.
-                    </p>
+                    <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-center dark:border-gray-700 dark:bg-gray-900/50">
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        Aucune robe disponible pour le moment
+                      </p>
+                    </div>
+                  )}
+
+                  {contractDraft.mode === "package" ? (
+                    <div className="rounded-lg bg-green-50 p-3 dark:bg-green-950/20">
+                      <p className="text-xs text-green-700 dark:text-green-300">
+                        Vous pourrez sélectionner le forfait et les autres robes à l'étape suivante
+                      </p>
+                      {packageUnavailable && (
+                        <p className="mt-2 text-xs font-medium text-amber-600 dark:text-amber-400">
+                          ⚠️ Aucun forfait disponible pour le moment. Créez-en un avant de continuer.
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex items-start gap-2 rounded-lg bg-gray-50 p-3 dark:bg-gray-900/50">
+                      <svg className="mt-0.5 h-4 w-4 flex-shrink-0 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <p className="text-xs text-gray-600 dark:text-gray-400">
+                        Les détails de tarification et les options seront disponibles après la sélection de la robe
+                      </p>
+                    </div>
                   )}
                 </div>
-                {contractDraft.mode === "package" ? (
-                  <div className="space-y-1 text-xs text-gray-500 dark:text-gray-400">
-                    <p>Vous pourrez sélectionner le forfait et les autres robes à l'étape suivante.</p>
-                    {packageUnavailable ? (
-                      <p className="text-warning-600 dark:text-warning-400">
-                        Aucun forfait disponible pour le moment. Créez-en un avant de continuer.
-                      </p>
-                    ) : null}
-                  </div>
-                ) : (
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Les détails de tarification et les options seront disponibles après la sélection de la robe.
-                  </p>
-                )}
               </div>
-            </section>
+            </div>
 
-            <div className="flex justify-end gap-3 border-t border-gray-200 pt-4 dark:border-gray-800">
+            <div className="flex justify-end gap-3 border-t border-gray-200 pt-6 dark:border-gray-800">
               <Button type="button" variant="outline" onClick={closeContractDrawer}>
                 Annuler
               </Button>
@@ -4210,157 +4687,204 @@ export default function Catalogue() {
       >
         {customerDrawer.contract ? (
           <div className="space-y-6">
-            <section className="space-y-4 rounded-2xl border border-gray-200 bg-white/80 p-6 shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.02]">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    Contrat créé
-                  </p>
-                  <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                    {customerDrawer.contract.contract_number}
-                  </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {formatDateTime(customerDrawer.contract.start_datetime)} → {formatDateTime(customerDrawer.contract.end_datetime)}
-                  </p>
-                </div>
-                {(() => {
-                  const statusMeta = getContractStatusMeta(
-                    customerDrawer.contract?.status,
-                    customerDrawer.contract?.deleted_at,
-                  );
-                  return (
-                    <Badge variant="light" color={statusMeta.color} size="sm">
-                      {statusMeta.label}
-                    </Badge>
-                  );
-                })()}
-              </div>
-              <dl className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    Montant TTC
-                  </dt>
-                  <dd className="mt-1 text-sm text-gray-800 dark:text-gray-200">
-                    {formatCurrency(customerDrawer.contract.total_price_ttc)}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    Montant HT
-                  </dt>
-                  <dd className="mt-1 text-sm text-gray-800 dark:text-gray-200">
-                    {formatCurrency(customerDrawer.contract.total_price_ht)}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    Acompte TTC
-                  </dt>
-                  <dd className="mt-1 text-sm text-gray-800 dark:text-gray-200">
-                    {formatCurrency(customerDrawer.contract.account_ttc)}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    Acompte payé TTC
-                  </dt>
-                  <dd className="mt-1 text-sm text-gray-800 dark:text-gray-200">
-                    {formatCurrency(customerDrawer.contract.account_paid_ttc)}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    Caution TTC
-                  </dt>
-                  <dd className="mt-1 text-sm text-gray-800 dark:text-gray-200">
-                    {formatCurrency(customerDrawer.contract.caution_ttc)}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    Caution payée TTC
-                  </dt>
-                  <dd className="mt-1 text-sm text-gray-800 dark:text-gray-200">
-                    {formatCurrency(customerDrawer.contract.caution_paid_ttc)}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    Type de contrat
-                  </dt>
-                  <dd className="mt-1 text-sm text-gray-800 dark:text-gray-200">{customerContractTypeLabel}</dd>
-                </div>
-                {customerContractPackageLabel ? (
-                  <div>
-                    <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                      Forfait
-                    </dt>
-                    <dd className="mt-1 text-sm text-gray-800 dark:text-gray-200">{customerContractPackageLabel}</dd>
+            {/* Section Contrat créé - Style amélioré */}
+            <div className="overflow-hidden rounded-2xl bg-white shadow-theme-sm ring-1 ring-gray-200/70 dark:bg-white/[0.03] dark:ring-white/10">
+              <div className="border-b border-gray-200 bg-gradient-to-r from-green-50/80 to-white/50 p-5 dark:border-gray-800 dark:from-green-950/10 dark:to-white/[0.01]">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <svg className="h-5 w-5 text-green-600 dark:text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">
+                        Contrat créé avec succès
+                      </h3>
+                      {(() => {
+                        const statusMeta = getContractStatusMeta(
+                          customerDrawer.contract?.status,
+                          customerDrawer.contract?.deleted_at,
+                        );
+                        return (
+                          <Badge variant="light" color={statusMeta.color} size="sm">
+                            {statusMeta.label}
+                          </Badge>
+                        );
+                      })()}
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                        {customerDrawer.contract.contract_number}
+                      </p>
+                      <div className="mt-1 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <span>{formatDateTime(customerDrawer.contract.start_datetime)} → {formatDateTime(customerDrawer.contract.end_datetime)}</span>
+                      </div>
+                    </div>
                   </div>
-                ) : null}
-                <div>
-                  <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    Méthode de paiement
-                  </dt>
-                  <dd className="mt-1 text-sm text-gray-800 dark:text-gray-200">
-                    {(() => {
-                      const method = (customerDrawer.contract.deposit_payment_method ?? "").toLowerCase();
-                      if (method === "cash") return "Espèces";
-                      if (method === "card") return "Carte bancaire";
-                      if (!method) return "-";
-                      return customerDrawer.contract.deposit_payment_method;
-                    })()}
-                  </dd>
                 </div>
-              </dl>
-            </section>
+              </div>
 
+              <div className="space-y-4 p-6">
+                {/* Montants principaux */}
+                <div>
+                  <h4 className="mb-3 text-sm font-semibold text-gray-800 dark:text-white/90">Montants</h4>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {/* Acompte */}
+                    <div className="rounded-xl border border-gray-200 bg-gradient-to-br from-blue-50/50 to-white p-4 dark:border-gray-800 dark:from-blue-950/10 dark:to-white/[0.02]">
+                      <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Acompte</p>
+                      <p className="mt-1 text-lg font-bold text-gray-900 dark:text-white">{formatCurrency(customerDrawer.contract.account_paid_ttc)}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-500">sur {formatCurrency(customerDrawer.contract.account_ttc)}</p>
+                    </div>
+                    {/* Caution */}
+                    <div className="rounded-xl border border-gray-200 bg-gradient-to-br from-amber-50/50 to-white p-4 dark:border-gray-800 dark:from-amber-950/10 dark:to-white/[0.02]">
+                      <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Caution</p>
+                      <p className="mt-1 text-lg font-bold text-gray-900 dark:text-white">{formatCurrency(customerDrawer.contract.caution_paid_ttc)}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-500">sur {formatCurrency(customerDrawer.contract.caution_ttc)}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Détails du contrat */}
+                <div className="grid gap-4 border-t border-gray-200 pt-4 dark:border-gray-800 md:grid-cols-3">
+                  <div className="space-y-1">
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Montant total TTC</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">
+                      {formatCurrency(customerDrawer.contract.total_price_ttc)}
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Montant total HT</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">
+                      {formatCurrency(customerDrawer.contract.total_price_ht)}
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Type de contrat</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">{customerContractTypeLabel}</p>
+                  </div>
+                  {customerContractPackageLabel ? (
+                    <div className="space-y-1">
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Forfait</p>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">{customerContractPackageLabel}</p>
+                    </div>
+                  ) : null}
+                  <div className="space-y-1">
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Méthode de paiement</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">
+                      {(() => {
+                        const method = (customerDrawer.contract.deposit_payment_method ?? "").toLowerCase();
+                        if (method === "cash") return "Espèces";
+                        if (method === "card") return "Carte bancaire";
+                        if (!method) return "-";
+                        return customerDrawer.contract.deposit_payment_method;
+                      })()}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Section Robe louée */}
             {(() => {
               const contractDresses = customerDrawer.contract.dresses ?? [];
               const fromContract = contractDresses[0]?.dress ?? contractDresses[0] ?? null;
               const dress = fromContract ?? contractDrawer.dress;
               if (!dress) return null;
               return (
-                <section className="space-y-3 rounded-2xl border border-gray-200 bg-white/80 p-6 shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.02]">
-                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Robe louée</h3>
-                  <div className="space-y-1 text-sm text-gray-700 dark:text-gray-300">
-                    <p>
-                      <span className="font-medium text-gray-900 dark:text-white">{dress.name ?? "Robe"}</span>
-                      {dress.reference ? ` • Réf. ${dress.reference}` : ""}
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      Tarif journalier : {formatCurrency(dress.price_per_day_ttc ?? pricePerDay.ttc)} TTC
-                    </p>
+                <div className="overflow-hidden rounded-2xl bg-white shadow-theme-sm ring-1 ring-gray-200/70 dark:bg-white/[0.03] dark:ring-white/10">
+                  <div className="border-b border-gray-200 bg-gradient-to-r from-purple-50/80 to-white/50 p-5 dark:border-gray-800 dark:from-purple-950/10 dark:to-white/[0.01]">
+                    <div className="flex items-center gap-2">
+                      <svg className="h-5 w-5 text-purple-600 dark:text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                      </svg>
+                      <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">
+                        Robe louée
+                      </h3>
+                    </div>
                   </div>
-                </section>
+                  <div className="space-y-3 p-6">
+                    <div className="rounded-xl bg-gray-50/80 p-4 dark:bg-white/5">
+                      <p className="text-lg font-bold text-gray-900 dark:text-white">{dress.name ?? "Robe"}</p>
+                      {dress.reference && (
+                        <div className="mt-2 flex items-center gap-2">
+                          <div className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded bg-purple-100 dark:bg-purple-900/30">
+                            <svg className="h-3 w-3 text-purple-600 dark:text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
+                            </svg>
+                          </div>
+                          <span className="text-sm font-semibold text-gray-600 dark:text-gray-400">
+                            Réf. {dress.reference}
+                          </span>
+                        </div>
+                      )}
+                      <p className="mt-3 text-xs text-gray-600 dark:text-gray-400">
+                        Tarif journalier : <span className="font-semibold text-gray-900 dark:text-white">{formatCurrency(dress.price_per_day_ttc ?? pricePerDay.ttc)} TTC</span>
+                      </p>
+                    </div>
+                  </div>
+                </div>
               );
             })()}
 
-            <section className="space-y-4 rounded-2xl border border-gray-200 bg-white/80 p-6 shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.02]">
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Options incluses</h3>
-              {(() => {
-                const addonLinks = customerDrawer.contract.addon_links ?? [];
-                const addons: ContractAddonOption[] = (customerDrawer.contract.addons as ContractAddonOption[] | undefined) ??
-                  addonLinks
-                    .map((link) => link.addon)
-                    .filter((addon): addon is ContractAddonOption => Boolean(addon));
-                if (!addons.length) {
-                  return <p className="text-sm text-gray-500 dark:text-gray-400">Aucune option ajoutée.</p>;
-                }
-                return (
-                  <ul className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
-                    {addons.map((addon) => (
-                      <li key={addon.id} className="flex items-center justify-between">
-                        <span>{addon.name}</span>
-                        <span className="text-xs text-gray-500 dark:text-gray-400">
-                          {formatCurrency(addon.price_ttc)} TTC
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                );
-              })()}
-            </section>
+            {/* Section Options */}
+            <div className="overflow-hidden rounded-2xl bg-white shadow-theme-sm ring-1 ring-gray-200/70 dark:bg-white/[0.03] dark:ring-white/10">
+              <div className="border-b border-gray-200 bg-gradient-to-r from-rose-50/80 to-white/50 p-5 dark:border-gray-800 dark:from-rose-950/10 dark:to-white/[0.01]">
+                <div className="flex items-center gap-2">
+                  <svg className="h-5 w-5 text-rose-600 dark:text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                  </svg>
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-700 dark:text-gray-300">
+                    Options
+                  </h3>
+                </div>
+              </div>
+              <div className="p-6">
+                {(() => {
+                  const addonLinks = customerDrawer.contract.addon_links ?? [];
+                  const addons: ContractAddonOption[] = (customerDrawer.contract.addons as ContractAddonOption[] | undefined) ??
+                    addonLinks
+                      .map((link) => link.addon)
+                      .filter((addon): addon is ContractAddonOption => Boolean(addon));
+
+                  // Récupérer les IDs des addons inclus dans le forfait
+                  const contract = customerDrawer.contract;
+                  const packageAddonIds = contract?.package?.addons?.map((pa: { addon_id: string }) => pa.addon_id) ?? [];
+
+                  if (!addons.length) {
+                    return <p className="text-sm text-gray-500 dark:text-gray-400">Aucune option ajoutée.</p>;
+                  }
+                  return (
+                    <div className="space-y-2">
+                      {addons.map((addon) => {
+                        const isIncluded = packageAddonIds.includes(addon.id);
+                        return (
+                          <div key={addon.id} className="flex items-center justify-between rounded-lg border border-gray-200 bg-white/70 px-4 py-3 dark:border-gray-700 dark:bg-white/[0.02]">
+                            <div className="flex items-center gap-2">
+                              <svg className="h-4 w-4 text-rose-600 dark:text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                              </svg>
+                              <div>
+                                <span className="font-medium text-gray-900 dark:text-white">{addon.name}</span>
+                                {isIncluded && (
+                                  <span className="ml-2 inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                                    Inclus au forfait
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                              {formatCurrency(addon.price_ttc)} TTC
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
 
             <div className="flex justify-end gap-3 border-t border-gray-200 pt-4 dark:border-gray-800">
               <Button type="button" variant="outline" onClick={handleCloseCustomerDrawer}>

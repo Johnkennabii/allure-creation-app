@@ -1,38 +1,112 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import type { ReactElement } from "react";
+import { EmailsAPI, Mailbox } from "../../../api/endpoints/emails";
 
-export default function MailBox() {
-  const [activeItem, setActiveItem] = useState("inbox");
+interface MailBoxProps {
+  onMailboxSelect: (mailbox: string) => void;
+  selectedMailbox: string;
+}
 
-  const menuItems = [
-    { name: "Inbox", key: "inbox", count: 3, icon: InboxIcon },
-    { name: "Sent", key: "sent", icon: SentIcon },
-    { name: "Drafts", key: "draft", icon: DraftIcon },
-    { name: "Spam", key: "spam", count: 2, icon: SpamIcon },
-    { name: "Trash", key: "trash", icon: TrashIcon },
-    { name: "Archive", key: "archive", icon: ArchiveIcon },
-  ];
+// Mapping des noms de mailbox API vers les noms utilisés par l'API
+// Valeurs acceptées par l'API : inbox, sent, trash, spam, junk
+const MAILBOX_NAME_MAP: Record<string, string> = {
+  INBOX: "inbox",
+  Sent: "sent",
+  Drafts: "drafts", // Note: L'API liste cette mailbox mais ne la supporte pas encore
+  Junk: "junk",
+  Trash: "trash",
+};
+
+// Mailboxes qui ne sont pas encore supportées par l'API
+const UNSUPPORTED_MAILBOXES = ["drafts"];
+
+export default function MailBox({ onMailboxSelect, selectedMailbox }: MailBoxProps) {
+  const [mailboxes, setMailboxes] = useState<Mailbox[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchMailboxes = async () => {
+      try {
+        const data = await EmailsAPI.getMailboxes();
+        setMailboxes(data);
+      } catch (error) {
+        console.error("Erreur lors de la récupération des mailboxes:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchMailboxes();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-4">
+        <div className="text-sm text-gray-500 dark:text-gray-400">Chargement...</div>
+      </div>
+    );
+  }
+  // Mapping des noms de mailbox vers les icônes
+  const getIconComponent = (mailboxName: string) => {
+    const iconMap: Record<string, () => ReactElement> = {
+      INBOX: InboxIcon,
+      Sent: SentIcon,
+      Drafts: DraftIcon,
+      Junk: SpamIcon,
+      Trash: TrashIcon,
+    };
+    return iconMap[mailboxName] || InboxIcon;
+  };
+
+  const handleMailboxClick = (mailboxName: string) => {
+    const normalizedName = MAILBOX_NAME_MAP[mailboxName] || mailboxName.toLowerCase();
+
+    // Vérifier si la mailbox est supportée par l'API
+    if (UNSUPPORTED_MAILBOXES.includes(normalizedName)) {
+      console.warn(`La mailbox "${mailboxName}" n'est pas encore supportée par l'API`);
+      return;
+    }
+
+    onMailboxSelect(normalizedName);
+  };
+
   return (
     <ul className="flex flex-col gap-1">
-      {menuItems.map((item) => (
-        <li key={item.key}>
-          <button
-            onClick={() => setActiveItem(item.key)}
-            className={`group flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-sm font-medium
-              ${
-                activeItem === item.key
-                  ? "text-brand-500 bg-brand-50 dark:text-brand-400 dark:bg-brand-500/[0.12]"
-                  : "text-gray-500 dark:text-gray-400"
-              }
-              hover:bg-brand-50 hover:text-brand-500 dark:hover:bg-brand-500/[0.12] dark:hover:text-brand-400`}
-          >
-            <span className="flex items-center gap-3">
-              <item.icon />
-              {item.name}
-            </span>
-            {item.count && <span>{item.count}</span>}
-          </button>
-        </li>
-      ))}
+      {mailboxes.map((mailbox) => {
+        const IconComponent = getIconComponent(mailbox.name);
+        const hasNewMessages = mailbox.new > 0;
+        const normalizedName = MAILBOX_NAME_MAP[mailbox.name] || mailbox.name.toLowerCase();
+        const isActive = selectedMailbox === normalizedName;
+        const isUnsupported = UNSUPPORTED_MAILBOXES.includes(normalizedName);
+
+        return (
+          <li key={mailbox.name}>
+            <button
+              onClick={() => handleMailboxClick(mailbox.name)}
+              disabled={isUnsupported}
+              className={`group flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-sm font-medium
+                ${
+                  isActive
+                    ? "text-brand-500 bg-brand-50 dark:text-brand-400 dark:bg-brand-500/[0.12]"
+                    : isUnsupported
+                    ? "text-gray-300 dark:text-gray-600 cursor-not-allowed"
+                    : "text-gray-500 dark:text-gray-400"
+                }
+                ${!isUnsupported ? "hover:bg-brand-50 hover:text-brand-500 dark:hover:bg-brand-500/[0.12] dark:hover:text-brand-400" : ""}`}
+            >
+              <span className="flex items-center gap-3">
+                <IconComponent />
+                {mailbox.displayName}
+              </span>
+              {hasNewMessages && (
+                <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-medium text-white bg-brand-500 rounded-full">
+                  {mailbox.new}
+                </span>
+              )}
+            </button>
+          </li>
+        );
+      })}
     </ul>
   );
 }
@@ -113,22 +187,6 @@ const TrashIcon = () => (
       fillRule="evenodd"
       clipRule="evenodd"
       d="M6.54118 3.7915C6.54118 2.54886 7.54854 1.5415 8.79118 1.5415H11.2078C12.4505 1.5415 13.4578 2.54886 13.4578 3.7915V4.0415H15.6249H16.6658C17.08 4.0415 17.4158 4.37729 17.4158 4.7915C17.4158 5.20572 17.08 5.5415 16.6658 5.5415H16.3749V8.24638V13.2464V16.2082C16.3749 17.4508 15.3676 18.4582 14.1249 18.4582H5.87492C4.63228 18.4582 3.62492 17.4508 3.62492 16.2082V13.2464V8.24638V5.5415H3.33325C2.91904 5.5415 2.58325 5.20572 2.58325 4.7915C2.58325 4.37729 2.91904 4.0415 3.33325 4.0415H4.37492H6.54118V3.7915ZM14.8749 13.2464V8.24638V5.5415H13.4578H12.7078H7.29118H6.54118H5.12492V8.24638V13.2464V16.2082C5.12492 16.6224 5.46071 16.9582 5.87492 16.9582H14.1249C14.5391 16.9582 14.8749 16.6224 14.8749 16.2082V13.2464ZM8.04118 4.0415H11.9578V3.7915C11.9578 3.37729 11.6221 3.0415 11.2078 3.0415H8.79118C8.37696 3.0415 8.04118 3.37729 8.04118 3.7915V4.0415ZM8.33325 7.99984C8.74747 7.99984 9.08325 8.33562 9.08325 8.74984V13.7498C9.08325 14.1641 8.74747 14.4998 8.33325 14.4998C7.91904 14.4998 7.58325 14.1641 7.58325 13.7498V8.74984C7.58325 8.33562 7.91904 7.99984 8.33325 7.99984ZM12.4166 8.74984C12.4166 8.33562 12.0808 7.99984 11.6666 7.99984C11.2524 7.99984 10.9166 8.33562 10.9166 8.74984V13.7498C10.9166 14.1641 11.2524 14.4998 11.6666 14.4998C12.0808 14.4998 12.4166 14.1641 12.4166 13.7498V8.74984Z"
-      fill="currentColor"
-    />
-  </svg>
-);
-const ArchiveIcon = () => (
-  <svg
-    width="20"
-    height="20"
-    viewBox="0 0 20 20"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-  >
-    <path
-      fillRule="evenodd"
-      clipRule="evenodd"
-      d="M1.54175 4.8335C1.54175 3.59085 2.54911 2.5835 3.79175 2.5835H16.2084C17.4511 2.5835 18.4584 3.59085 18.4584 4.8335V5.16683C18.4584 5.96477 18.0431 6.66569 17.4167 7.06517V15.1668C17.4167 16.4095 16.4094 17.4168 15.1667 17.4168H4.83341C3.59077 17.4168 2.58341 16.4095 2.58341 15.1668V7.06517C1.95711 6.66568 1.54175 5.96476 1.54175 5.16683V4.8335ZM4.08341 7.41683H15.9167V15.1668C15.9167 15.581 15.581 15.9168 15.1667 15.9168H4.83341C4.4192 15.9168 4.08341 15.581 4.08341 15.1668V7.41683ZM16.9584 5.16683C16.9584 5.58104 16.6226 5.91683 16.2084 5.91683H3.79175C3.37753 5.91683 3.04175 5.58104 3.04175 5.16683V4.8335C3.04175 4.41928 3.37753 4.0835 3.79175 4.0835H16.2084C16.6226 4.0835 16.9584 4.41928 16.9584 4.8335V5.16683ZM8.33341 9.04183C7.9192 9.04183 7.58341 9.37762 7.58341 9.79183C7.58341 10.206 7.9192 10.5418 8.33341 10.5418H11.6667C12.081 10.5418 12.4167 10.206 12.4167 9.79183C12.4167 9.37762 12.081 9.04183 11.6667 9.04183H8.33341Z"
       fill="currentColor"
     />
   </svg>

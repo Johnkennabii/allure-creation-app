@@ -1,6 +1,6 @@
 const DEFAULT_MAX_WIDTH = 1920;
 const DEFAULT_MAX_HEIGHT = 1920;
-const DEFAULT_QUALITY = 0.85;
+const DEFAULT_QUALITY = 0.75; // Réduit de 0.85 à 0.75 pour plus de compression
 
 export interface CompressionOptions {
   maxWidth?: number;

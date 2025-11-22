@@ -134,7 +134,31 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         navigate("/");
       }
     } catch (err: any) {
-      notify("error", "Erreur de connexion", err.message || "Identifiants invalides");
+      // Gérer les différents types d'erreurs de connexion
+      let errorTitle = "Erreur de connexion";
+      let errorMessage = "Une erreur s'est produite lors de la connexion.";
+
+      if (err.status === 401) {
+        errorTitle = "Identifiants incorrects";
+        errorMessage = "L'adresse email ou le mot de passe que vous avez saisi est incorrect. Veuillez vérifier vos informations et réessayer.";
+      } else if (err.status === 404) {
+        errorTitle = "Compte introuvable";
+        errorMessage = "Aucun compte n'existe avec cette adresse email. Veuillez vérifier l'adresse email saisie.";
+      } else if (err.status === 403) {
+        errorTitle = "Accès refusé";
+        errorMessage = "Votre compte n'est pas autorisé à accéder à cette application. Veuillez contacter un administrateur.";
+      } else if (err.status === 429) {
+        errorTitle = "Trop de tentatives";
+        errorMessage = "Vous avez effectué trop de tentatives de connexion. Veuillez patienter quelques minutes avant de réessayer.";
+      } else if (err.status >= 500) {
+        errorTitle = "Erreur serveur";
+        errorMessage = "Le serveur rencontre actuellement des difficultés. Veuillez réessayer dans quelques instants.";
+      } else if (err.message && err.message !== "Unauthorized") {
+        // Utiliser le message d'erreur du serveur s'il est disponible
+        errorMessage = err.message;
+      }
+
+      notify("error", errorTitle, errorMessage);
       throw err;
     } finally {
       setLoading(false);
@@ -182,24 +206,57 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         isOpen={sessionExpired}
         onClose={() => undefined}
         showCloseButton={false}
-        className="max-w-md w-full p-6"
+        className="max-w-md w-full"
       >
-        <div className="flex flex-col gap-6">
-          <div>
-            <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">Session expirée</h3>
-            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-              Votre session a expiré. Pour continuer, veuillez vous reconnecter.
-            </p>
+        <div className="flex flex-col">
+          {/* En-tête avec gradient */}
+          <div className="overflow-hidden rounded-t-2xl border-b border-amber-200 bg-gradient-to-r from-amber-50/80 to-white/50 p-6 dark:border-amber-800 dark:from-amber-950/10 dark:to-white/[0.01]">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30">
+                <svg className="h-6 w-6 text-amber-600 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                  Session expirée
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Reconnexion requise
+                </p>
+              </div>
+            </div>
           </div>
-          <div className="flex justify-end">
-            <Button
-              onClick={() => {
-                setSessionExpired(false);
-                navigate("/signin", { replace: true });
-              }}
-            >
-              Se reconnecter
-            </Button>
+
+          {/* Contenu */}
+          <div className="space-y-4 p-6">
+            <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4 dark:border-amber-800 dark:bg-amber-900/10">
+              <div className="flex gap-3">
+                <svg className="h-5 w-5 flex-shrink-0 text-amber-600 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div className="flex-1 text-sm">
+                  <p className="font-medium text-amber-900 dark:text-amber-200">
+                    Votre session a expiré
+                  </p>
+                  <p className="mt-1 text-amber-700 dark:text-amber-300">
+                    Pour des raisons de sécurité, vous devez vous reconnecter pour continuer à utiliser l'application.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <Button
+                onClick={() => {
+                  setSessionExpired(false);
+                  navigate("/signin", { replace: true });
+                }}
+                className="w-full sm:w-auto"
+              >
+                Se reconnecter
+              </Button>
+            </div>
           </div>
         </div>
       </Modal>

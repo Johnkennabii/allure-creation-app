@@ -3,8 +3,9 @@ import Chart from "react-apexcharts";
 import { ApexOptions } from "apexcharts";
 import { ContractsAPI } from "../../api/endpoints/contracts";
 
-export default function StatisticsChart() {
-  const [cautionsData, setCautionsData] = useState<number[]>(Array(12).fill(0));
+export default function 
+() {
+  const [accountsPaidData, setAccountsPaidData] = useState<number[]>(Array(12).fill(0));
   const [totalsData, setTotalsData] = useState<number[]>(Array(12).fill(0));
   const [isLoading, setIsLoading] = useState(true);
   const [currentYear] = useState(new Date().getFullYear());
@@ -18,7 +19,7 @@ export default function StatisticsChart() {
         const contracts = await ContractsAPI.listAll();
 
         // Initialiser les tableaux pour les 12 mois
-        const monthlyCautions = Array(12).fill(0);
+        const monthlyAccountsPaid = Array(12).fill(0);
         const monthlyTotals = Array(12).fill(0);
 
         // Calculer les sommes par mois
@@ -29,22 +30,22 @@ export default function StatisticsChart() {
 
           // On ne compte que les contrats de l'année en cours
           if (contractYear === currentYear) {
-            // Convertir les cautions TTC en nombre
-            const cautionTTC = typeof contract.caution_ttc === 'string'
-              ? parseFloat(contract.caution_ttc)
-              : Number(contract.caution_ttc || 0);
+            // Convertir les acomptes payés TTC en nombre
+            const accountPaidTTC = typeof contract.account_paid_ttc === 'string'
+              ? parseFloat(contract.account_paid_ttc)
+              : Number(contract.account_paid_ttc || 0);
 
             // Convertir les prix totaux TTC en nombre
             const totalTTC = typeof contract.total_price_ttc === 'string'
               ? parseFloat(contract.total_price_ttc)
               : Number(contract.total_price_ttc || 0);
 
-            monthlyCautions[contractMonth] += cautionTTC;
+            monthlyAccountsPaid[contractMonth] += accountPaidTTC;
             monthlyTotals[contractMonth] += totalTTC;
           }
         });
 
-        setCautionsData(monthlyCautions);
+        setAccountsPaidData(monthlyAccountsPaid);
         setTotalsData(monthlyTotals);
       } catch (error) {
         console.error("Erreur lors de la récupération des données:", error);
@@ -167,8 +168,8 @@ export default function StatisticsChart() {
       data: totalsData,
     },
     {
-      name: "Cautions TTC",
-      data: cautionsData,
+      name: "Acomptes Payés TTC",
+      data: accountsPaidData,
     },
   ];
   return (
@@ -179,7 +180,7 @@ export default function StatisticsChart() {
             Statistiques {currentYear}
           </h3>
           <p className="mt-1 text-gray-500 text-theme-sm dark:text-gray-400">
-            Comparaison des prix totaux et des cautions par mois
+            Comparaison des prix totaux et des acomptes payés par mois
           </p>
         </div>
         <div className="flex items-start w-full gap-3 sm:justify-end">

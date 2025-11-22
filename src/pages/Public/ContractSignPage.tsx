@@ -117,9 +117,9 @@ export default function ContractSignPage() {
 
   const getAddonLabel = (addonId?: string) => {
     if (addonId && packageAddonIds.includes(addonId)) {
-      return "Inclus au forfait";
+      return { text: "Inclus au forfait", color: "text-success-600" };
     }
-    return "Optionnel";
+    return { text: "Optionnel", color: "text-gray-500" };
   };
 
   const isDisabled = useMemo(() => {
@@ -514,7 +514,7 @@ export default function ContractSignPage() {
                     {addon.description && (
                       <p className="text-xs text-gray-600">{addon.description}</p>
                     )}
-                    <p className="text-xs text-gray-500">{getAddonLabel(addon.id)}</p>
+                    <p className={`text-xs ${getAddonLabel(addon.id).color}`}>{getAddonLabel(addon.id).text}</p>
                   </div>
                   <p className="ml-3 text-xs text-gray-500">{formatCurrency(addon.price_ttc)} TTC</p>
                 </div>

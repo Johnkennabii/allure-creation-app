@@ -5,7 +5,6 @@ import { Link, useLocation } from "react-router";
 import {
   AiIcon,
   BoxCubeIcon,
-  CalenderIcon,
   CallIcon,
   CartIcon,
   ChatIcon,
@@ -22,7 +21,8 @@ import {
   UserCircleIcon,
 } from "../icons";
 import {  PiDress } from "react-icons/pi";
-import { FiUsers } from "react-icons/fi";
+import { FiUsers , FiUserPlus} from "react-icons/fi";
+import { IoCalendarNumberOutline } from "react-icons/io5";
 import { useSidebar } from "../context/SidebarContext";
 import SidebarWidget from "./SidebarWidget";
 import { useAuth } from "../context/AuthContext";
@@ -58,20 +58,20 @@ const navItems: NavItem[] = [
     requiredRoles: ["ADMIN", "MANAGER", "COLLABORATOR"],
   },
   {
-    icon: <CalenderIcon />,
+    icon: <IoCalendarNumberOutline />,
     name: "Calendrier",
     path: "/calendar",
     requiredRoles: ["ADMIN", "MANAGER", "COLLABORATOR"],
   },
     {
-    icon: <UserCircleIcon />,
+    icon: <FiUserPlus />,
     name: "Clients",
     path: "/customers",
     requiredRoles: ["ADMIN", "MANAGER", "COLLABORATOR"],
   },
   {
     icon: <FiUsers/>,
-    name: "Utilisateur",
+    name: "Utilisateurs",
     path: "/users/list",
     requiredRoles: ["ADMIN", "MANAGER"],
   },
