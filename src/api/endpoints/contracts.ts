@@ -91,6 +91,17 @@ export interface ContractFullView {
   customer_address?: string;
   customer_postal_code?: string;
   customer_birthday?: string | null;
+  customer?: {
+    firstname?: string;
+    lastname?: string;
+    email?: string;
+    phone?: string;
+    city?: string;
+    country?: string;
+    address?: string;
+    postal_code?: string;
+    birthday?: string | null;
+  };
   contract_type?: {
     id: string;
     name: string;
@@ -419,5 +430,24 @@ export const ContractsAPI = {
       console.error("Recherche contrat", error);
       return [];
     }
+  },
+
+  list: async (): Promise<{ data: ContractFullView[] }> => {
+    const res = await httpClient.get("/contracts/full-view?include=package");
+    const entries = extractContractArray(res);
+    return { data: entries };
+  },
+
+  markAccountAsPaid: async (contractId: string): Promise<ContractFullView> => {
+    const contract = await ContractsAPI.getById(contractId);
+    const accountTTC = parseFloat(String(contract.account_ttc || 0));
+    const accountHT = parseFloat(String(contract.account_ht || 0));
+
+    const payload: ContractUpdatePayload = {
+      account_paid_ttc: accountTTC,
+      account_paid_ht: accountHT,
+    };
+
+    return ContractsAPI.update(contractId, payload);
   },
 };

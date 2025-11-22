@@ -21,6 +21,7 @@ import { ContractsAPI, type ContractFullView, type ContractUpdatePayload } from 
 import { ContractAddonsAPI, type ContractAddon as ContractAddonOption } from "../../api/endpoints/contractAddons";
 import { ContractPackagesAPI, type ContractPackage } from "../../api/endpoints/contractPackages";
 import { UsersAPI, type UserListItem } from "../../api/endpoints/users";
+import { DressesAPI, type DressAvailability } from "../../api/endpoints/dresses";
 import { PencilIcon, CloseLineIcon, TrashBinIcon } from "../../icons";
 import { IoEyeOutline } from "react-icons/io5";
 import DatePicker from "../../components/form/date-picker";
@@ -153,14 +154,14 @@ const parseMoneyField = (value: string) => {
 };
 
 const TooltipWrapper = ({ title, children }: { title: string; children: React.ReactNode }) => (
-  <div className="relative inline-block group">
+  <div className="tooltip-wrapper group/tooltip relative inline-block">
     {children}
-    <div className="invisible absolute bottom-full left-1/2 z-30 mb-2 -translate-x-1/2 opacity-0 transition-opacity duration-150 group-hover:visible group-hover:opacity-100">
+    <div className="invisible absolute bottom-full left-1/2 z-30 mb-2 -translate-x-1/2 opacity-0 transition-opacity duration-150 group-hover/tooltip:visible group-hover/tooltip:opacity-100">
       <div className="relative">
-        <div className="whitespace-nowrap rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-medium text-white shadow-lg">
+        <div className="whitespace-nowrap rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-medium text-white shadow-lg dark:bg-gray-100 dark:text-gray-900">
           {title}
         </div>
-        <div className="absolute -bottom-1 left-1/2 h-3 w-4 -translate-x-1/2 rotate-45 bg-gray-900" />
+        <div className="absolute -bottom-1 left-1/2 h-3 w-4 -translate-x-1/2 rotate-45 bg-gray-900 dark:bg-gray-100" />
       </div>
     </div>
   </div>
@@ -198,7 +199,6 @@ const statusConfig: Record<
   draft: { color: "primary", label: "Brouillon" },
   pending: { color: "warning", label: "En attente" },
   pending_signature: { color: "warning", label: "En attente de signature" },
-  confirmed: { color: "success", label: "Confirmé" },
   signed: { color: "success", label: "Signé" },
   signed_electronically: { color: "success", label: "Signé électroniquement" },
   completed: { color: "info", label: "Terminé" },
@@ -252,6 +252,7 @@ const ContractCard = ({
   onSoftDelete,
   onSignature,
   onUploadSigned,
+  onMarkAccountAsPaid,
   userRole,
   softDeletingId,
   signatureLoadingId,
@@ -267,6 +268,7 @@ const ContractCard = ({
   onSoftDelete: (contract: ContractFullView) => void;
   onSignature: (contract: ContractFullView) => void;
   onUploadSigned: (contract: ContractFullView) => void;
+  onMarkAccountAsPaid: (contract: ContractFullView) => void;
   userRole: UserRole;
   softDeletingId: string | null;
   signatureLoadingId: string | null;
@@ -319,71 +321,180 @@ const ContractCard = ({
   };
 
   const paymentLabel = formatPaymentMethod(contract.deposit_payment_method);
+  const [showMetadata, setShowMetadata] = useState(false);
+
+  // Calculer les pourcentages de paiement
+  const accountTotal = parseFloat(String(contract.account_ttc || 0));
+  const accountPaid = parseFloat(String(contract.account_paid_ttc || 0));
+  const accountPercentage = accountTotal > 0 ? Math.round((accountPaid / accountTotal) * 100) : 0;
+
+  const cautionTotal = parseFloat(String(contract.caution_ttc || 0));
+  const cautionPaid = parseFloat(String(contract.caution_paid_ttc || 0));
+  const cautionPercentage = cautionTotal > 0 ? Math.round((cautionPaid / cautionTotal) * 100) : 0;
 
   return (
-    <div className="space-y-6 rounded-2xl bg-white/80 p-6 shadow-theme-xs ring-1 ring-gray-200/70 backdrop-blur dark:bg-white/[0.05] dark:ring-white/10">
-      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-        <div className="space-y-1">
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-            Contrat
-          </p>
-          <p className="text-lg font-semibold text-gray-900 dark:text-white">
-            {contract.contract_number || "-"}
-          </p>
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            {formatDateTime(contract.start_datetime)} → {formatDateTime(contract.end_datetime)}
-          </p>
+    <div className="overflow-hidden rounded-2xl bg-white shadow-theme-sm ring-1 ring-gray-200/70 dark:bg-white/[0.03] dark:ring-white/10">
+      {/* En-tête avec gradient */}
+      <div className="border-b border-gray-200 bg-gradient-to-r from-gray-50/80 to-white/50 p-5 dark:border-gray-800 dark:from-white/[0.02] dark:to-white/[0.01]">
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                Contrat
+              </p>
+              <Badge variant="light" color={config.color} size="sm">
+                {config.label}
+              </Badge>
+            </div>
+            <p className="text-xl font-bold text-gray-900 dark:text-white">
+              {contract.contract_number || "-"}
+            </p>
+            <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              <span>{formatDateTime(contract.start_datetime)} → {formatDateTime(contract.end_datetime)}</span>
+            </div>
+            {(contract.package?.name || contract.contract_type_name === "Forfait") && (
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-700 dark:bg-green-900/20 dark:text-green-400">
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                </svg>
+                Forfait : {contract.package?.name || currentPackage?.name || "Non défini"}
+                {(contract.package?.price_ttc || currentPackage?.price_ttc) && (
+                  <span className="text-green-600 dark:text-green-500">
+                    ({formatCurrency(contract.package?.price_ttc || currentPackage?.price_ttc)})
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
         </div>
-        <Badge variant="light" color={config.color} size="sm">
-          {config.label}
-        </Badge>
       </div>
 
-      <div className="grid gap-x-8 gap-y-5 md:grid-cols-2 lg:grid-cols-3">
-        <InfoCard label="Montant total TTC">{formatCurrency(contract.total_price_ttc)}</InfoCard>
-        <InfoCard label="Acompte TTC">{formatCurrency(contract.account_ttc)}</InfoCard>
-        <InfoCard label="Acompte payé TTC">{formatCurrency(contract.account_paid_ttc)}</InfoCard>
-        <InfoCard label="Caution TTC">{formatCurrency(contract.caution_ttc)}</InfoCard>
-        <InfoCard label="Caution payée TTC">{formatCurrency(contract.caution_paid_ttc)}</InfoCard>
-        <InfoCard label="Méthode de paiement">{paymentLabel}</InfoCard>
-        <InfoCard label="Type de contrat" color="success">{contract.contract_type_name || "-"}</InfoCard>
-        <InfoCard label="Forfait associé">
-          {contract.package?.name
-            ? `${contract.package.name} ${contract.package.price_ttc ? `(${formatCurrency(contract.package.price_ttc)})` : ""}`
-            : "Aucun"}
-        </InfoCard>
-        <InfoCard label="Statut interne">{config.label}</InfoCard>
-        <InfoCard label="Lien de signature">
-          {signLinkUrl ? (
-            <a
-              href={signLinkUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="break-all text-xs text-brand-600 hover:underline dark:text-brand-400"
-            >
-              {signLinkUrl}
-              {contract.sign_link?.expires_at ? ` (exp. ${formatDateTime(contract.sign_link.expires_at)})` : ""}
-            </a>
-          ) : (
-            "-"
-          )}
-        </InfoCard>
+      {/* Section Montants principaux avec indicateurs visuels */}
+      <div className="space-y-6 p-6">
+        <div className="space-y-4">
+          <div className="flex items-end justify-between">
+            <h5 className="text-sm font-semibold text-gray-800 dark:text-white/90">Montants</h5>
+            <div className="text-right">
+              <p className="text-xs text-gray-500 dark:text-gray-400">Total TTC</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatCurrency(contract.total_price_ttc)}</p>
+            </div>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            {/* Acompte avec barre de progression */}
+            <div className="rounded-xl border border-gray-200 bg-gradient-to-br from-blue-50/50 to-white p-4 dark:border-gray-800 dark:from-blue-950/10 dark:to-white/[0.02]">
+              <div className="mb-3 flex items-start justify-between">
+                <div>
+                  <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Acompte</p>
+                  <p className="mt-1 text-lg font-bold text-gray-900 dark:text-white">{formatCurrency(accountPaid)}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-500">sur {formatCurrency(accountTotal)}</p>
+                </div>
+                <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                  {accountPercentage}%
+                </span>
+              </div>
+              <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-blue-500 to-blue-600 transition-all duration-300"
+                  style={{ width: `${Math.min(accountPercentage, 100)}%` }}
+                />
+              </div>
+              {accountPercentage < 100 && accountTotal > 0 && (
+                <button
+                  onClick={() => onMarkAccountAsPaid(contract)}
+                  disabled={!permissions.canEdit}
+                  className="mt-3 w-full rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-blue-700 dark:hover:bg-blue-800"
+                >
+                  Marquer comme payé complètement
+                </button>
+              )}
+            </div>
+
+            {/* Caution avec barre de progression */}
+            <div className="rounded-xl border border-gray-200 bg-gradient-to-br from-amber-50/50 to-white p-4 dark:border-gray-800 dark:from-amber-950/10 dark:to-white/[0.02]">
+              <div className="mb-3 flex items-start justify-between">
+                <div>
+                  <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Caution</p>
+                  <p className="mt-1 text-lg font-bold text-gray-900 dark:text-white">{formatCurrency(cautionPaid)}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-500">sur {formatCurrency(cautionTotal)}</p>
+                </div>
+                <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                  {cautionPercentage}%
+                </span>
+              </div>
+              <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-amber-500 to-amber-600 transition-all duration-300"
+                  style={{ width: `${Math.min(cautionPercentage, 100)}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Informations supplémentaires */}
+        <div className="grid gap-4 border-t border-gray-200 pt-4 dark:border-gray-800 md:grid-cols-3">
+          <div className="space-y-1">
+            <p className="text-xs text-gray-500 dark:text-gray-400">Type de contrat</p>
+            <p className="text-sm font-medium text-gray-900 dark:text-white">{contract.contract_type_name || "-"}</p>
+          </div>
+          <div className="space-y-1">
+            <p className="text-xs text-gray-500 dark:text-gray-400">Méthode de paiement</p>
+            <p className="text-sm font-medium text-gray-900 dark:text-white">{paymentLabel}</p>
+          </div>
+          <div className="space-y-1">
+            <p className="text-xs text-gray-500 dark:text-gray-400">Lien de signature</p>
+            {signLinkUrl ? (
+              <a
+                href={signLinkUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-sm font-medium text-brand-600 hover:underline dark:text-brand-400"
+              >
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+                Ouvrir
+              </a>
+            ) : (
+              <p className="text-sm text-gray-500 dark:text-gray-400">-</p>
+            )}
+          </div>
+        </div>
       </div>
 
+      {/* Section Robes */}
       {dresses.length > 0 && (
-        <div className="space-y-3">
-          <h5 className="text-sm font-semibold text-gray-800 dark:text-white/90">Robes incluses</h5>
-          <ul className="grid gap-3 text-sm text-gray-700 dark:text-gray-200 md:grid-cols-2">
+        <div className="border-t border-gray-200 p-6 dark:border-gray-800">
+          <div className="mb-4 flex items-center gap-2">
+            <svg className="h-5 w-5 text-gray-600 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+            </svg>
+            <h5 className="text-base font-semibold text-gray-900 dark:text-white">Robes incluses</h5>
+            <span className="ml-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+              {dresses.length}
+            </span>
+          </div>
+          <ul className="grid gap-3 md:grid-cols-2">
             {dresses.map((dress, index) => {
               const key = dress.id ?? ("dress_id" in dress ? (dress as { dress_id?: string }).dress_id ?? `${contract.id}-dress-${index}` : `${contract.id}-dress-${index}`);
               return (
-                <li key={key} className="rounded-xl bg-gray-50/70 p-3 dark:bg-white/10">
-                  <p className="font-medium text-gray-900 dark:text-white">{dress.name ?? "Robe"}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Référence : {dress.reference || "-"}</p>
-
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Prix journée : {formatCurrency(dress.price_per_day_ttc ?? dress.price_per_day_ht)} TTC
-                  </p>
+                <li key={key} className="group relative overflow-hidden rounded-xl border border-gray-200 bg-white p-4 transition-all hover:shadow-md dark:border-gray-800 dark:bg-white/[0.02] dark:hover:bg-white/[0.04]">
+                  <div className="absolute right-0 top-0 h-20 w-20 translate-x-8 -translate-y-8 rounded-full bg-gradient-to-br from-purple-100 to-pink-100 opacity-50 dark:from-purple-900/20 dark:to-pink-900/20" />
+                  <div className="relative space-y-2">
+                    <p className="font-semibold text-gray-900 dark:text-white">{dress.name ?? "Robe"}</p>
+                    <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
+                      <span className="rounded bg-gray-100 px-2 py-0.5 font-medium dark:bg-gray-800">
+                        Réf: {dress.reference || "-"}
+                      </span>
+                      <span className="font-semibold text-gray-900 dark:text-white">
+                        {formatCurrency(dress.price_per_day_ttc ?? dress.price_per_day_ht)} TTC/jour
+                      </span>
+                    </div>
+                  </div>
                 </li>
               );
             })}
@@ -391,84 +502,141 @@ const ContractCard = ({
         </div>
       )}
 
+      {/* Section Options */}
       {addons.length > 0 && (
-        <div className="space-y-3">
-          <h5 className="text-sm font-semibold text-gray-800 dark:text-white/90">Options</h5>
-          <ul className="grid gap-2 text-sm text-gray-700 dark:text-gray-200 md:grid-cols-2">
-            {addons.map((addon) => (
-              <li
-                key={addon.id}
-                className="flex items-center justify-between rounded-xl bg-gray-50/70 px-3 py-2 dark:bg-white/10"
-              >
-                <div className="flex-1 space-y-0.5">
-                  <span className="font-medium text-gray-900 dark:text-white">{addon.name}</span>
-                  {addon.description && (
-                    <span className="block text-xs text-gray-600 dark:text-gray-300">
-                      {addon.description}
-                    </span>
-                  )}
-                  <span className="block text-xs text-gray-500 dark:text-gray-400">
-                    {getAddonLabel(addon.id)}
-                  </span>
-                </div>
-                <span className="ml-3 text-xs text-gray-500 dark:text-gray-400">
-                  {formatCurrency(addon.price_ttc)} TTC
+        <div className="border-t border-gray-200 dark:border-gray-800">
+          <div className="border-b border-gray-200 bg-gray-50/50 px-6 py-4 dark:border-gray-800 dark:bg-white/[0.02]">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <svg className="h-5 w-5 text-gray-600 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                </svg>
+                <h5 className="text-base font-semibold text-gray-900 dark:text-white">Options</h5>
+                <span className="ml-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                  {addons.length}
                 </span>
-              </li>
-            ))}
-          </ul>
+              </div>
+              {packageAddonIds.length > 0 && (
+                <span className="rounded-full bg-green-50 px-2.5 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/20 dark:text-green-400">
+                  {packageAddonIds.length} incluse{packageAddonIds.length > 1 ? 's' : ''} au forfait
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="p-6">
+            <ul className="grid gap-3 md:grid-cols-2">
+              {addons.map((addon) => {
+                const addonLabel = getAddonLabel(addon.id);
+                const isIncluded = addonLabel.includes("Inclus");
+                return (
+                  <li
+                    key={addon.id}
+                    className="group relative overflow-hidden rounded-xl border border-gray-200 bg-white p-4 transition-all hover:shadow-md dark:border-gray-800 dark:bg-white/[0.02] dark:hover:bg-white/[0.04]"
+                  >
+                    <div className={`absolute right-0 top-0 h-20 w-20 translate-x-8 -translate-y-8 rounded-full opacity-50 ${isIncluded ? "bg-gradient-to-br from-green-100 to-emerald-100 dark:from-green-900/20 dark:to-emerald-900/20" : "bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-blue-900/20 dark:to-indigo-900/20"}`} />
+                    <div className="relative flex items-start justify-between gap-3">
+                      <div className="flex-1 space-y-1.5">
+                        <p className="font-semibold text-gray-900 dark:text-white">{addon.name}</p>
+                        {addon.description && (
+                          <p className="text-xs leading-relaxed text-gray-600 dark:text-gray-400">
+                            {addon.description}
+                          </p>
+                        )}
+                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${isIncluded ? "bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400" : "bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400"}`}>
+                          {isIncluded && (
+                            <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                            </svg>
+                          )}
+                          {addonLabel}
+                        </span>
+                      </div>
+                      <span className="shrink-0 text-base font-bold text-gray-900 dark:text-white">
+                        {formatCurrency(addon.price_ttc)}
+                      </span>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
         </div>
       )}
 
-      <div className="space-y-3">
-        <h5 className="text-sm font-semibold text-gray-800 dark:text-white/90">Métadonnées</h5>
-        <div className="grid gap-x-8 gap-y-3 text-xs md:grid-cols-2 lg:grid-cols-3">
-          {contract.created_at && (
-            <div className="space-y-0.5">
-              <p className="text-gray-500 dark:text-gray-400">Créé le</p>
-              <p className="font-medium text-gray-900 dark:text-white">{formatDateTime(contract.created_at)}</p>
+      {/* Section Métadonnées (collapsible) */}
+      <div className="border-t border-gray-200 dark:border-gray-800">
+        <button
+          onClick={() => setShowMetadata(!showMetadata)}
+          className="flex w-full items-center justify-between p-6 text-left transition-colors hover:bg-gray-50/50 dark:hover:bg-white/[0.02]"
+        >
+          <div className="flex items-center gap-2">
+            <svg className="h-5 w-5 text-gray-600 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <h5 className="text-base font-semibold text-gray-900 dark:text-white">Métadonnées</h5>
+          </div>
+          <svg
+            className={`h-5 w-5 text-gray-500 transition-transform dark:text-gray-400 ${showMetadata ? "rotate-180" : ""}`}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        {showMetadata && (
+          <div className="border-t border-gray-200 bg-gray-50/30 px-6 py-4 dark:border-gray-800 dark:bg-white/[0.01]">
+            <div className="grid gap-4 text-sm md:grid-cols-2 lg:grid-cols-3">
+              {contract.created_at && (
+                <div className="space-y-1">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Créé le</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{formatDateTime(contract.created_at)}</p>
+                </div>
+              )}
+              {contract.created_by && (
+                <div className="space-y-1">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Créé par</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{getUserFullName(contract.created_by)}</p>
+                </div>
+              )}
+              {contract.updated_at && (
+                <div className="space-y-1">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Mis à jour le</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{formatDateTime(contract.updated_at)}</p>
+                </div>
+              )}
+              {contract.updated_by && (
+                <div className="space-y-1">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Mis à jour par</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{getUserFullName(contract.updated_by)}</p>
+                </div>
+              )}
+              {contract.deleted_at && (
+                <div className="space-y-1">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Désactivé le</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{formatDateTime(contract.deleted_at)}</p>
+                </div>
+              )}
+              {contract.deleted_by && (
+                <div className="space-y-1">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Désactivé par</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{getUserFullName(contract.deleted_by)}</p>
+                </div>
+              )}
+              {contract.signed_at && (
+                <div className="space-y-1">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Signé le</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{formatDateTime(contract.signed_at)}</p>
+                </div>
+              )}
             </div>
-          )}
-          {contract.created_by && (
-            <div className="space-y-0.5">
-              <p className="text-gray-500 dark:text-gray-400">Créé par</p>
-              <p className="font-medium text-gray-900 dark:text-white">{getUserFullName(contract.created_by)}</p>
-            </div>
-          )}
-          {contract.updated_at && (
-            <div className="space-y-0.5">
-              <p className="text-gray-500 dark:text-gray-400">Mis à jour le</p>
-              <p className="font-medium text-gray-900 dark:text-white">{formatDateTime(contract.updated_at)}</p>
-            </div>
-          )}
-          {contract.updated_by && (
-            <div className="space-y-0.5">
-              <p className="text-gray-500 dark:text-gray-400">Mis à jour par</p>
-              <p className="font-medium text-gray-900 dark:text-white">{getUserFullName(contract.updated_by)}</p>
-            </div>
-          )}
-          {contract.deleted_at && (
-            <div className="space-y-0.5">
-              <p className="text-gray-500 dark:text-gray-400">Désactivé le</p>
-              <p className="font-medium text-gray-900 dark:text-white">{formatDateTime(contract.deleted_at)}</p>
-            </div>
-          )}
-          {contract.deleted_by && (
-            <div className="space-y-0.5">
-              <p className="text-gray-500 dark:text-gray-400">Désactivé par</p>
-              <p className="font-medium text-gray-900 dark:text-white">{getUserFullName(contract.deleted_by)}</p>
-            </div>
-          )}
-          {contract.signed_at && (
-            <div className="space-y-0.5">
-              <p className="text-gray-500 dark:text-gray-400">Signé le</p>
-              <p className="font-medium text-gray-900 dark:text-white">{formatDateTime(contract.signed_at)}</p>
-            </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
-      <div className="flex flex-wrap gap-3 pt-2">
+      {/* Section Actions */}
+      <div className="border-t border-gray-200 bg-gray-50/50 p-6 dark:border-gray-800 dark:bg-white/[0.01]">
+        <div className="flex flex-wrap gap-3">
 
         {contract.signed_pdf_url ? (
           <Button
@@ -532,6 +700,7 @@ const ContractCard = ({
         >
           {signatureLoadingId === contract.id ? "Envoi en cours..." : "Signature électronique"}
         </Button>
+        </div>
       </div>
     </div>
   );
@@ -626,6 +795,8 @@ export default function Customers() {
   const [users, setUsers] = useState<UserListItem[]>([]);
   const [generatedPdfContracts, setGeneratedPdfContracts] = useState<Set<string>>(new Set());
   const [uploadingSignedPdfId, setUploadingSignedPdfId] = useState<string | null>(null);
+  const [dressAvailability, setDressAvailability] = useState<Map<string, DressAvailability>>(new Map());
+  const [checkingAvailability, setCheckingAvailability] = useState(false);
 
   const { notify } = useNotification();
   const { hasRole, user } = useAuth();
@@ -653,18 +824,29 @@ export default function Customers() {
   );
 
   const contractStatusOptions = useMemo(
-    () => [
-      { value: "DRAFT", label: statusConfig.draft.label },
-      { value: "PENDING", label: statusConfig.pending.label },
-      { value: "PENDING_SIGNATURE", label: statusConfig.pending_signature.label },
-      { value: "CONFIRMED", label: statusConfig.confirmed.label },
-      { value: "SIGNED", label: statusConfig.signed.label },
-      { value: "SIGNED_ELECTRONICALLY", label: statusConfig.signed_electronically.label },
-      { value: "COMPLETED", label: statusConfig.completed.label },
-      { value: "DISABLED", label: statusConfig.disabled.label },
-      { value: "CANCELLED", label: statusConfig.cancelled.label },
-    ],
-    [],
+    () => {
+      const allOptions = [
+        { value: "DRAFT", label: statusConfig.draft.label },
+        { value: "PENDING", label: statusConfig.pending.label },
+        { value: "PENDING_SIGNATURE", label: statusConfig.pending_signature.label },
+        { value: "SIGNED", label: statusConfig.signed.label },
+        { value: "SIGNED_ELECTRONICALLY", label: statusConfig.signed_electronically.label },
+        { value: "COMPLETED", label: statusConfig.completed.label },
+        { value: "DISABLED", label: statusConfig.disabled.label },
+        { value: "CANCELLED", label: statusConfig.cancelled.label },
+      ];
+
+      // Si l'utilisateur est MANAGER, il ne peut choisir que Brouillon et Annulé
+      if (hasRole("MANAGER") && !hasRole("ADMIN")) {
+        return allOptions.filter(option =>
+          option.value === "DRAFT" || option.value === "CANCELLED"
+        );
+      }
+
+      // ADMIN peut tout choisir
+      return allOptions;
+    },
+    [hasRole],
   );
 
   const paymentMethodOptions = useMemo(
@@ -781,13 +963,28 @@ export default function Customers() {
   const contractEditSelectedTotals = useMemo(
     () => {
       const contract = contractEditDrawer.contract;
-      const packageAddons = contract?.package?.addons ?? [];
-      const packageAddonIds = new Set(packageAddons.map((link: { addon_id: string }) => link.addon_id));
+
+      // Utiliser la même logique que pour l'affichage des addons (lignes 2758-2764)
+      const currentPackage = contract?.package?.id
+        ? contractPackages.find((pkg: ContractPackage) => pkg.id === contract.package?.id)
+        : null;
+
+      const packageAddonIdsArray = (currentPackage?.addons?.map((pa: { addon_id: string }) => pa.addon_id) ??
+                                    contract?.package?.addons?.map((pa: { addon_id: string }) => pa.addon_id) ??
+                                    []);
+
+      const packageAddonIds = new Set(packageAddonIdsArray);
+
+      console.log('Edit Contract - Package Addon IDs:', Array.from(packageAddonIds));
+      console.log('Edit Contract - Selected Addons:', contractEditSelectedAddons);
+      console.log('Edit Contract - Contract Package ID:', contract?.package?.id);
+      console.log('Edit Contract - Found Package:', currentPackage?.name);
 
       return contractEditSelectedAddons.reduce(
         (acc, addon) => {
           // Pour location forfait : exclure les addons qui sont inclus dans le package
           const isInPackage = packageAddonIds.has(addon.id);
+          console.log(`Addon ${addon.name} (${addon.id}): isInPackage=${isInPackage}`);
           if (isInPackage) {
             return acc;
           }
@@ -801,7 +998,7 @@ export default function Customers() {
         { ht: 0, ttc: 0 },
       );
     },
-    [contractEditSelectedAddons, contractEditDrawer.contract],
+    [contractEditSelectedAddons, contractEditDrawer.contract, contractPackages],
   );
 
   const computeHtFromTtc = useCallback(
@@ -1453,6 +1650,56 @@ export default function Customers() {
     setContractEditDrawer({ open: true, contract });
     setContractEditForm(buildContractEditFormState(contract));
     setContractEditSubmitting(false);
+
+    // Vérifier la disponibilité des robes pour la période actuelle
+    if (contract.dresses && contract.dresses.length > 0 && contract.start_datetime && contract.end_datetime) {
+      const dressIds = contract.dresses
+        .map((d) => d.id)
+        .filter((id): id is string => Boolean(id));
+
+      if (dressIds.length > 0) {
+        checkDressAvailability(
+          new Date(contract.start_datetime),
+          new Date(contract.end_datetime),
+          dressIds
+        );
+      }
+    }
+  };
+
+  const handleMarkAccountAsPaid = async (contract: ContractFullView) => {
+    if (!canManageContracts) {
+      notify("warning", "Action non autorisée", "Vous n'avez pas les droits suffisants.");
+      return;
+    }
+
+    try {
+      const accountTTC = parseFloat(String(contract.account_ttc || 0));
+
+      if (accountTTC <= 0) {
+        notify("warning", "Attention", "Le montant de l'acompte est invalide.");
+        return;
+      }
+
+      // Mettre à jour directement le contrat
+      const payload = {
+        account_paid_ttc: accountTTC,
+      };
+
+      const updated = await ContractsAPI.update(contract.id, payload);
+
+      // Mettre à jour la liste des contrats
+      setViewContracts((prev) =>
+        prev.map((item) =>
+          item.id === contract.id ? { ...item, ...updated } : item
+        )
+      );
+
+      notify("success", "Succès", "L'acompte a été marqué comme payé complètement.");
+    } catch (error) {
+      console.error("Erreur lors de la mise à jour de l'acompte:", error);
+      notify("error", "Erreur", "Impossible de mettre à jour l'acompte.");
+    }
   };
 
   const handleSoftDeleteContract = async (contract: ContractFullView) => {
@@ -1501,6 +1748,7 @@ export default function Customers() {
     if (contractEditSubmitting) return;
     setContractEditDrawer({ open: false, contract: null });
     setContractEditAddonIds([]);
+    setDressAvailability(new Map());
   };
 
   const handleContractEditFieldChange =
@@ -1549,6 +1797,33 @@ export default function Customers() {
     });
   }, []);
 
+  const checkDressAvailability = useCallback(async (start: Date, end: Date, selectedDressIds: string[]) => {
+    if (!selectedDressIds.length) {
+      setDressAvailability(new Map());
+      return;
+    }
+
+    try {
+      setCheckingAvailability(true);
+      const response = await DressesAPI.listAvailability(
+        start.toISOString(),
+        end.toISOString()
+      );
+
+      const availabilityMap = new Map<string, DressAvailability>();
+      response.data.forEach((dress) => {
+        availabilityMap.set(dress.id, dress);
+      });
+
+      setDressAvailability(availabilityMap);
+    } catch (error) {
+      console.error("Erreur lors de la vérification de disponibilité:", error);
+      notify("error", "Erreur", "Impossible de vérifier la disponibilité des robes");
+    } finally {
+      setCheckingAvailability(false);
+    }
+  }, [notify]);
+
   const handleContractEditDateChange = useCallback((selectedDates: Date[]) => {
     if (!selectedDates.length) return;
     const startRaw = selectedDates[0];
@@ -1568,16 +1843,29 @@ export default function Customers() {
       end.setDate(end.getDate() + 1);
     }
 
-    setContractEditForm((prev) =>
-      prev
-        ? {
-            ...prev,
-            startDate: start.toISOString(),
-            endDate: end.toISOString(),
-          }
-        : prev,
-    );
-  }, []);
+    setContractEditForm((prev) => {
+      if (!prev) return prev;
+
+      const updated = {
+        ...prev,
+        startDate: start.toISOString(),
+        endDate: end.toISOString(),
+      };
+
+      return updated;
+    });
+
+    // Vérifier la disponibilité des robes du contrat
+    if (contractEditDrawer.contract?.dresses) {
+      const dressIds = contractEditDrawer.contract.dresses
+        .map((d) => d.id)
+        .filter((id): id is string => Boolean(id));
+
+      if (dressIds.length > 0) {
+        checkDressAvailability(start, end, dressIds);
+      }
+    }
+  }, [checkDressAvailability, contractEditDrawer.contract]);
 
   const handleContractEditSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -2079,6 +2367,7 @@ export default function Customers() {
                       onSoftDelete={handleSoftDeleteContract}
                       onSignature={handleSignature}
                       onUploadSigned={handleUploadSignedPdf}
+                      onMarkAccountAsPaid={handleMarkAccountAsPaid}
                       userRole={userRole}
                       softDeletingId={softDeletingContractId}
                       signatureLoadingId={signatureGeneratingContractId}
@@ -2115,58 +2404,82 @@ export default function Customers() {
       >
         {contractEditForm ? (
           <form className="space-y-8" onSubmit={handleContractEditSubmit}>
-            <section className="space-y-5 rounded-2xl border border-gray-200 bg-white/80 p-6 shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.02]">
-              <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                <div className="space-y-1">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    Contrat
-                  </p>
-                  <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                    {contractEditDrawer.contract?.contract_number ?? "-"}
-                  </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {contractEditDrawer.contract?.contract_type_name ?? "Contrat de location"}
-                  </p>
+            {/* Section En-tête avec gradient */}
+            <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-theme-sm dark:border-gray-800 dark:bg-white/[0.03]">
+              <div className="border-b border-gray-200 bg-gradient-to-r from-gray-50/80 to-white/50 p-6 dark:border-gray-800 dark:from-white/[0.02] dark:to-white/[0.01]">
+                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                        Contrat
+                      </p>
+                      {contractEditStatusMeta ? (
+                        <Badge variant="light" color={contractEditStatusMeta.color} size="sm">
+                          {contractEditStatusMeta.label}
+                        </Badge>
+                      ) : null}
+                    </div>
+                    <p className="text-xl font-bold text-gray-900 dark:text-white">
+                      {contractEditDrawer.contract?.contract_number ?? "-"}
+                    </p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      {contractEditDrawer.contract?.contract_type_name ?? "Contrat de location"}
+                    </p>
+                  </div>
                 </div>
-                {contractEditStatusMeta ? (
-                  <Badge variant="light" color={contractEditStatusMeta.color} size="sm">
-                    {contractEditStatusMeta.label}
-                  </Badge>
-                ) : null}
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <Label>Statut</Label>
-                  <Select
-                    options={contractStatusOptions}
-                    value={contractEditForm.status}
-                    onChange={(value) => handleContractEditFieldChange("status")(value.toUpperCase())}
-                    placeholder="Sélectionner un statut"
-                  />
-                </div>
-                <div>
-                  <Label>Méthode de paiement</Label>
-                  <Select
-                    options={paymentMethodOptions}
-                    value={contractEditForm.depositPaymentMethod}
-                    onChange={(value) => handleContractEditFieldChange("depositPaymentMethod")(value)}
-                    emptyOptionLabel="Méthode non renseignée"
-                    placeholder="Méthode de paiement"
-                  />
+              <div className="space-y-6 p-6">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <Label>Statut</Label>
+                    <Select
+                      options={contractStatusOptions}
+                      value={contractEditForm.status}
+                      onChange={(value) => handleContractEditFieldChange("status")(value.toUpperCase())}
+                      placeholder="Sélectionner un statut"
+                    />
+                  </div>
+                  <div>
+                    <Label>Méthode de paiement</Label>
+                    <Select
+                      options={paymentMethodOptions}
+                      value={contractEditForm.depositPaymentMethod}
+                      onChange={(value) => handleContractEditFieldChange("depositPaymentMethod")(value)}
+                      emptyOptionLabel="Méthode non renseignée"
+                      placeholder="Méthode de paiement"
+                    />
+                  </div>
                 </div>
               </div>
             </section>
 
-            <section className="space-y-5 rounded-2xl border border-gray-200 bg-white/80 p-6 shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.02]">
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Période de location</h3>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="flex flex-col gap-2">
+            <section className="rounded-2xl border border-gray-200 bg-white shadow-theme-sm dark:border-gray-800 dark:bg-white/[0.03]">
+              <div className="border-b border-gray-200 bg-gray-50/50 px-6 py-4 dark:border-gray-800 dark:bg-white/[0.02]">
+                <div className="flex items-center gap-2">
+                  <svg className="h-5 w-5 text-gray-600 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  <h3 className="text-base font-semibold text-gray-900 dark:text-white">Période de location</h3>
+                  {contractEditDurationDays > 0 && (
+                    <span className="ml-1 rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-semibold text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
+                      {contractEditDurationDays} jour{contractEditDurationDays > 1 ? "s" : ""}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="p-6">
+                {/* Sélection de période */}
+                <div className="mb-5">
+                  <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Sélectionner une période
+                  </label>
                   <DatePicker
                     id={contractEditDatePickerId}
                     mode="range"
                     defaultDate={contractEditDateRange}
-                    placeholder="Sélectionnez une période"
+                    placeholder="Choisir les dates de début et fin"
                     onChange={handleContractEditDateChange}
                     options={{
                       enableTime: true,
@@ -2178,217 +2491,535 @@ export default function Customers() {
                     }}
                   />
                 </div>
-                <div className="rounded-xl border border-gray-200 bg-gray-50/70 p-4 text-sm text-gray-700 dark:border-gray-700 dark:bg-white/[0.02] dark:text-gray-200">
-                  {contractEditDateRange ? (
-                    <>
-                      <p className="font-medium">
-                        {contractEditDateRange[0].toLocaleString("fr-FR", {
-                          day: "2-digit",
-                          month: "short",
-                          year: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}{" "}
-                        →{" "}
-                        {contractEditDateRange[1].toLocaleString("fr-FR", {
-                          day: "2-digit",
-                          month: "short",
-                          year: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </p>
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        {contractEditDurationDays > 0
-                          ? `${contractEditDurationDays} jour${contractEditDurationDays > 1 ? "s" : ""} de location`
-                          : "Durée non déterminée"}
-                      </p>
-                    </>
-                  ) : (
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      Sélectionnez une période pour afficher le récapitulatif.
+
+                {contractEditDateRange ? (
+                  <div className="space-y-4">
+                    {/* Récapitulatif de période */}
+                    <div className="relative overflow-hidden rounded-xl border border-purple-200 bg-gradient-to-br from-purple-50/50 to-white p-4 dark:border-purple-900/30 dark:from-purple-950/10 dark:to-white/[0.02]">
+                      <div className="absolute right-0 top-0 h-24 w-24 translate-x-10 -translate-y-10 rounded-full bg-gradient-to-br from-purple-100 to-indigo-100 opacity-50 dark:from-purple-900/20 dark:to-indigo-900/20" />
+
+                      <div className="relative">
+                        <div className="mb-3 flex items-center gap-2">
+                          <svg className="h-5 w-5 text-purple-600 dark:text-purple-400" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+                          </svg>
+                          <p className="text-sm font-semibold text-purple-700 dark:text-purple-400">
+                            Récapitulatif de la période
+                          </p>
+                        </div>
+
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <div className="rounded-lg bg-white/60 p-3 dark:bg-white/[0.03]">
+                            <div className="mb-1 flex items-center gap-1.5">
+                              <svg className="h-4 w-4 text-green-600 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                              </svg>
+                              <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">Début</p>
+                            </div>
+                            <p className="text-sm font-bold text-gray-900 dark:text-white">
+                              {contractEditDateRange[0].toLocaleString("fr-FR", {
+                                day: "2-digit",
+                                month: "short",
+                                year: "numeric",
+                              })}
+                            </p>
+                            <p className="text-xs text-gray-600 dark:text-gray-400">
+                              {contractEditDateRange[0].toLocaleString("fr-FR", {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </p>
+                          </div>
+
+                          <div className="rounded-lg bg-white/60 p-3 dark:bg-white/[0.03]">
+                            <div className="mb-1 flex items-center gap-1.5">
+                              <svg className="h-4 w-4 text-red-600 dark:text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                              </svg>
+                              <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">Fin</p>
+                            </div>
+                            <p className="text-sm font-bold text-gray-900 dark:text-white">
+                              {contractEditDateRange[1].toLocaleString("fr-FR", {
+                                day: "2-digit",
+                                month: "short",
+                                year: "numeric",
+                              })}
+                            </p>
+                            <p className="text-xs text-gray-600 dark:text-gray-400">
+                              {contractEditDateRange[1].toLocaleString("fr-FR", {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </p>
+                          </div>
+                        </div>
+
+                        {contractEditDurationDays > 0 && (
+                          <div className="mt-3 flex items-center justify-center gap-2 rounded-lg border border-purple-200 bg-purple-100/50 py-2 dark:border-purple-900/30 dark:bg-purple-950/30">
+                            <svg className="h-4 w-4 text-purple-700 dark:text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <p className="text-sm font-bold text-purple-700 dark:text-purple-400">
+                              {contractEditDurationDays} jour{contractEditDurationDays > 1 ? "s" : ""} de location
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Section Disponibilité des Robes */}
+                    {contractEditDrawer.contract?.dresses && contractEditDrawer.contract.dresses.length > 0 && (
+                      <div className="rounded-xl border border-gray-200 bg-gray-50/50 p-4 dark:border-gray-800 dark:bg-white/[0.02]">
+                        <div className="mb-3 flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <svg className="h-5 w-5 text-gray-700 dark:text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <h4 className="text-sm font-bold text-gray-900 dark:text-white">
+                              Disponibilité des robes ({contractEditDrawer.contract.dresses.length})
+                            </h4>
+                          </div>
+                          {checkingAvailability && (
+                            <span className="inline-flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                              <svg className="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              Vérification...
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="space-y-2">
+                          {contractEditDrawer.contract.dresses.map((contractDress) => {
+                            // Extraire les vraies données de la robe (pattern utilisé dans ContractCard)
+                            const dress = contractDress?.dress ?? contractDress;
+                            const availability = dressAvailability.get(dress.id);
+                            const hasConflict = availability && !availability.isAvailable;
+
+                            // Toujours utiliser les données du contrat en priorité
+                            const dressName = dress.name || availability?.name || "Nom non disponible";
+                            const dressReference = dress.reference || availability?.reference;
+                            const dressImages = dress.images || availability?.images;
+
+                            return (
+                              <div
+                                key={dress.id}
+                                className={`group relative overflow-hidden rounded-lg border bg-white p-3 transition-all hover:shadow-sm dark:bg-white/[0.02] ${
+                                  hasConflict
+                                    ? "border-blue-300 dark:border-blue-900/50"
+                                    : "border-green-300 dark:border-green-900/50"
+                                }`}
+                              >
+                                {/* Barre latérale colorée */}
+                                <div className={`absolute left-0 top-0 h-full w-1 ${
+                                  hasConflict
+                                    ? "bg-gradient-to-b from-blue-500 to-blue-600"
+                                    : "bg-gradient-to-b from-green-500 to-green-600"
+                                }`} />
+
+                                <div className="relative ml-2 flex items-start gap-3">
+                                  {/* Image */}
+                                  {dressImages && dressImages.length > 0 && (
+                                    <div className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-lg border-2 border-gray-200 bg-gray-50 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                                      <img
+                                        src={dressImages[0]}
+                                        alt={dressName || "Robe"}
+                                        className="h-full w-full object-cover"
+                                        onError={(e) => {
+                                          e.currentTarget.style.display = 'none';
+                                        }}
+                                      />
+                                    </div>
+                                  )}
+
+                                  {/* Contenu */}
+                                  <div className="flex min-w-0 flex-1 flex-col">
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div className="min-w-0 flex-1">
+                                        <p className="truncate text-sm font-bold text-gray-900 dark:text-white">
+                                          {dressName || "Nom non disponible"}
+                                        </p>
+                                        {dressReference && (
+                                          <p className="mt-0.5 text-xs font-medium text-gray-600 dark:text-gray-400">
+                                            Réf: {dressReference}
+                                          </p>
+                                        )}
+                                      </div>
+
+                                      {/* Badge de statut */}
+                                      {!checkingAvailability && (
+                                        <span className={`flex-shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-bold shadow-sm ${
+                                          hasConflict
+                                            ? "bg-blue-100 text-blue-700 ring-1 ring-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:ring-blue-800"
+                                            : "bg-green-100 text-green-700 ring-1 ring-green-200 dark:bg-green-900/30 dark:text-green-400 dark:ring-green-800"
+                                        }`}>
+                                          {hasConflict ? (
+                                            <>
+                                              <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                                              </svg>
+                                              Réservée
+                                            </>
+                                          ) : (
+                                            <>
+                                              <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                              </svg>
+                                              Disponible
+                                            </>
+                                          )}
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    {/* Message informatif pour les robes réservées */}
+                                    {hasConflict && availability.current_contract && (
+                                      <div className="mt-2 flex items-start gap-2 rounded-md bg-blue-50 p-2 dark:bg-blue-950/20">
+                                        <svg className="mt-0.5 h-4 w-4 flex-shrink-0 text-blue-600 dark:text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                                        </svg>
+                                        <div className="flex-1">
+                                          <p className="text-xs font-bold text-blue-800 dark:text-blue-300">
+                                            Robe réservée pour ce contrat
+                                          </p>
+                                          <p className="mt-1 text-xs leading-relaxed text-blue-700 dark:text-blue-400">
+                                            Période actuelle : Du{" "}
+                                            <span className="font-semibold">
+                                              {new Date(availability.current_contract.start_datetime).toLocaleString("fr-FR", {
+                                                day: "2-digit",
+                                                month: "short",
+                                                hour: "2-digit",
+                                                minute: "2-digit",
+                                              })}
+                                            </span>
+                                            {" "}au{" "}
+                                            <span className="font-semibold">
+                                              {new Date(availability.current_contract.end_datetime).toLocaleString("fr-FR", {
+                                                day: "2-digit",
+                                                month: "short",
+                                                hour: "2-digit",
+                                                minute: "2-digit",
+                                              })}
+                                            </span>
+                                          </p>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-300 bg-gray-50/50 py-12 dark:border-gray-700 dark:bg-white/[0.02]">
+                    <svg className="mb-3 h-12 w-12 text-gray-400 dark:text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                      Sélectionnez une période pour voir la disponibilité
                     </p>
+                  </div>
+                )}
+              </div>
+            </section>
+
+            {/* Section Options */}
+            <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-theme-sm dark:border-gray-800 dark:bg-white/[0.03]">
+              <div className="border-b border-gray-200 bg-gray-50/50 px-6 py-4 dark:border-gray-800 dark:bg-white/[0.02]">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <svg className="h-5 w-5 flex-shrink-0 text-gray-600 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                    </svg>
+                    <h3 className="text-base font-semibold leading-none text-gray-900 dark:text-white">Options</h3>
+                    {contractEditSelectedAddons.length > 0 && (
+                      <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                        {contractEditSelectedAddons.length}
+                      </span>
+                    )}
+                  </div>
+                  {contractAddonsLoading && (
+                    <span className="text-xs text-gray-500 dark:text-gray-400 animate-pulse">Chargement…</span>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-4 p-6">
+                {contractAddonsError ? (
+                  <div className="rounded-lg border border-error-100 bg-error-50 px-4 py-3 text-sm text-error-600 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300">
+                    <div className="flex items-center gap-2">
+                      <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                      {contractAddonsError}
+                    </div>
+                  </div>
+                ) : null}
+
+                {contractAddons.length ? (
+                  <div className="space-y-3">
+                    {contractAddons.map((addon) => {
+                      const isSelected = contractEditAddonIds.includes(addon.id);
+
+                      // Vérifier si l'addon est inclus dans le forfait du contrat (même logique que ContractCard)
+                      const contract = contractEditDrawer.contract;
+                      const currentPackage = contract?.package?.id
+                        ? contractPackages.find((pkg: ContractPackage) => pkg.id === contract.package?.id)
+                        : null;
+
+                      const packageAddonIds = (currentPackage?.addons?.map((pa: { addon_id: string }) => pa.addon_id) ??
+                                              contract?.package?.addons?.map((pa: { addon_id: string }) => pa.addon_id) ??
+                                              []);
+
+                      const isIncluded = packageAddonIds.includes(addon.id);
+                      return (
+                        <div
+                          key={addon.id}
+                          className={`group relative overflow-hidden rounded-xl border p-4 transition-all ${
+                            isIncluded
+                              ? "border-green-200 bg-gradient-to-br from-green-50/50 to-white dark:border-green-900/30 dark:from-green-950/10 dark:to-white/[0.02]"
+                              : "border-gray-200 bg-white hover:shadow-md dark:border-gray-800 dark:bg-white/[0.02] dark:hover:bg-white/[0.04]"
+                          }`}
+                        >
+                          <div className={`absolute right-0 top-0 h-20 w-20 translate-x-8 -translate-y-8 rounded-full opacity-50 ${
+                            isIncluded
+                              ? "bg-gradient-to-br from-green-100 to-emerald-100 dark:from-green-900/20 dark:to-emerald-900/20"
+                              : "bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-blue-900/20 dark:to-indigo-900/20"
+                          }`} />
+
+                          <div className="relative flex items-start justify-between gap-4">
+                            <div className="flex-1">
+                              <Checkbox
+                                checked={isSelected}
+                                onChange={(checked) => handleContractEditAddonToggle(addon.id, checked)}
+                                label={addon.name}
+                                disabled={isIncluded}
+                              />
+                              {addon.description && (
+                                <p className="ml-6 mt-1 text-xs text-gray-600 dark:text-gray-400">
+                                  {addon.description}
+                                </p>
+                              )}
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm font-bold text-gray-900 dark:text-white">
+                                {formatCurrency(addon.price_ttc)}
+                              </p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                                {formatCurrency(addon.price_ht)} HT
+                              </p>
+                              {isIncluded && (
+                                <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                                  <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                  </svg>
+                                  Inclus au forfait
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : !contractAddonsLoading ? (
+                  <p className="text-center text-sm text-gray-500 dark:text-gray-400 py-8">
+                    Aucune option de contrat n'est disponible pour le moment.
+                  </p>
+                ) : null}
+
+                {/* Résumé des options sélectionnées */}
+                <div className="rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50/50 to-white p-4 dark:border-blue-900/30 dark:from-blue-950/10 dark:to-white/[0.02]">
+                  {contractEditSelectedAddons.length ? (
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-semibold text-gray-900 dark:text-white">
+                          {contractEditSelectedAddons.length} option{contractEditSelectedAddons.length > 1 ? "s" : ""} sélectionnée{contractEditSelectedAddons.length > 1 ? "s" : ""}
+                        </p>
+                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                          Total : <span className="font-semibold">{formatCurrency(contractEditSelectedTotals.ttc)}</span> TTC • {formatCurrency(contractEditSelectedTotals.ht)} HT
+                        </p>
+                      </div>
+                      <svg className="h-8 w-8 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Aucune option sélectionnée.</p>
                   )}
                 </div>
               </div>
             </section>
 
-            <section className="space-y-5 rounded-2xl border border-gray-200 bg-white/80 p-6 shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.02]">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Options</h3>
-                {contractAddonsLoading ? (
-                  <span className="text-xs text-gray-500 dark:text-gray-400">Chargement…</span>
-                ) : null}
-              </div>
-              {contractAddonsError ? (
-                <div className="rounded-lg border border-error-100 bg-error-50 px-4 py-3 text-xs text-error-600 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300">
-                  {contractAddonsError}
+            {/* Section Montants avec organisation améliorée */}
+            <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-theme-sm dark:border-gray-800 dark:bg-white/[0.03]">
+              <div className="border-b border-gray-200 bg-gray-50/50 px-6 py-4 dark:border-gray-800 dark:bg-white/[0.02]">
+                <div className="flex items-center gap-2">
+                  <svg className="h-5 w-5 text-gray-600 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <h3 className="text-base font-semibold text-gray-900 dark:text-white">Montants</h3>
                 </div>
-              ) : null}
-              {contractAddons.length ? (
-                <div className="space-y-3">
-                  {contractAddons.map((addon) => {
-                    const isSelected = contractEditAddonIds.includes(addon.id);
-                    return (
-                      <div
-                        key={addon.id}
-                        className="flex items-center justify-between rounded-lg border border-gray-200 bg-white/70 px-4 py-3 dark:border-gray-700 dark:bg-white/[0.05]"
-                      >
-                        <Checkbox
-                          checked={isSelected}
-                          onChange={(checked) => handleContractEditAddonToggle(addon.id, checked)}
-                          label={addon.name}
-                        />
-                        <div className="text-right text-xs text-gray-500 dark:text-gray-400">
-                          <p>
-                            {formatCurrency(addon.price_ttc)} TTC • {formatCurrency(addon.price_ht)} HT
-                          </p>
-                          {addon.included ? (
-                            <p className="mt-1 font-medium text-success-600 dark:text-success-400">Inclus</p>
-                          ) : null}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : !contractAddonsLoading ? (
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Aucune option de contrat n'est disponible pour le moment.
-                </p>
-              ) : null}
-              <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-600 dark:border-gray-700 dark:bg-white/[0.03] dark:text-gray-300">
-                {contractEditSelectedAddons.length ? (
-                  <>
-                    <p className="font-medium text-gray-700 dark:text-gray-200">
-                      {contractEditSelectedAddons.length} option
-                      {contractEditSelectedAddons.length > 1 ? "s" : ""} sélectionnée
-                      {contractEditSelectedAddons.length > 1 ? "s" : ""}
-                    </p>
-                    <p className="mt-1">
-                      Total : {formatCurrency(contractEditSelectedTotals.ttc)} TTC •{" "}
-                      {formatCurrency(contractEditSelectedTotals.ht)} HT
-                    </p>
-                  </>
-                ) : (
-                  <p>Aucune option sélectionnée.</p>
-                )}
               </div>
-            </section>
 
-            <section className="space-y-5 rounded-2xl border border-gray-200 bg-white/80 p-6 shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.02]">
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Montants</h3>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <Label>Prix total TTC</Label>
-                  <Input
-                    type="number"
-                    inputMode="decimal"
-                    step="0.01"
-                    min="0"
-                    value={contractEditForm.totalPriceTTC}
-                    onChange={handleContractEditInputChange("totalPriceTTC")}
-                  />
+              <div className="space-y-6 p-6">
+                {/* Prix Total */}
+                <div className="rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50/50 to-white p-4 dark:border-gray-800 dark:from-white/[0.02] dark:to-white/[0.01]">
+                  <h4 className="mb-4 text-sm font-semibold text-gray-700 dark:text-gray-300">Prix Total</h4>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <Label>Prix total TTC</Label>
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        step="0.01"
+                        min="0"
+                        value={contractEditForm.totalPriceTTC}
+                        onChange={handleContractEditInputChange("totalPriceTTC")}
+                        disabled
+                      />
+                    </div>
+                    <div>
+                      <Label>Prix total HT</Label>
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        step="0.01"
+                        min="0"
+                        value={contractEditForm.totalPriceHT}
+                        readOnly
+                        className="bg-gray-100 dark:bg-gray-800"
+                        disabled
+                      />
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <Label>Prix total HT</Label>
-                  <Input
-                    type="number"
-                    inputMode="decimal"
-                    step="0.01"
-                    min="0"
-                    value={contractEditForm.totalPriceHT}
-                    readOnly
-                  />
+
+                {/* Acompte */}
+                <div className="rounded-xl border border-gray-200 bg-gradient-to-br from-blue-50/50 to-white p-4 dark:border-gray-800 dark:from-blue-950/10 dark:to-white/[0.02]">
+                  <h4 className="mb-4 flex items-center gap-2 text-sm font-semibold text-blue-700 dark:text-blue-400">
+                    <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
+                    </svg>
+                    Acompte
+                  </h4>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <Label>Acompte TTC</Label>
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        step="0.01"
+                        min="0"
+                        value={contractEditForm.accountTTC}
+                        onChange={handleContractEditInputChange("accountTTC")}
+                        disabled
+                      />
+                    </div>
+                    <div>
+                      <Label>Acompte HT</Label>
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        step="0.01"
+                        min="0"
+                        value={contractEditForm.accountHT}
+                        readOnly
+                        className="bg-gray-100 dark:bg-gray-800"
+                        disabled
+                      />
+                    </div>
+                    <div>
+                      <Label>Acompte payé TTC</Label>
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        step="0.01"
+                        min="0"
+                        value={contractEditForm.accountPaidTTC}
+                        onChange={handleContractEditInputChange("accountPaidTTC")}
+                      />
+                    </div>
+                    <div>
+                      <Label>Acompte payé HT</Label>
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        step="0.01"
+                        min="0"
+                        value={contractEditForm.accountPaidHT}
+                        readOnly
+                        className="bg-gray-100 dark:bg-gray-800"
+                        disabled
+                      />
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <Label>Acompte TTC</Label>
-                  <Input
-                    type="number"
-                    inputMode="decimal"
-                    step="0.01"
-                    min="0"
-                    value={contractEditForm.accountTTC}
-                    onChange={handleContractEditInputChange("accountTTC")}
-                  />
-                </div>
-                <div>
-                  <Label>Acompte HT</Label>
-                  <Input
-                    type="number"
-                    inputMode="decimal"
-                    step="0.01"
-                    min="0"
-                    value={contractEditForm.accountHT}
-                    readOnly
-                  />
-                </div>
-                <div>
-                  <Label>Acompte payé TTC</Label>
-                  <Input
-                    type="number"
-                    inputMode="decimal"
-                    step="0.01"
-                    min="0"
-                    value={contractEditForm.accountPaidTTC}
-                    onChange={handleContractEditInputChange("accountPaidTTC")}
-                  />
-                </div>
-                <div>
-                  <Label>Acompte payé HT</Label>
-                  <Input
-                    type="number"
-                    inputMode="decimal"
-                    step="0.01"
-                    min="0"
-                    value={contractEditForm.accountPaidHT}
-                    readOnly
-                  />
-                </div>
-                <div>
-                  <Label>Caution TTC</Label>
-                  <Input
-                    type="number"
-                    inputMode="decimal"
-                    step="0.01"
-                    min="0"
-                    value={contractEditForm.cautionTTC}
-                    onChange={handleContractEditInputChange("cautionTTC")}
-                  />
-                </div>
-                <div>
-                  <Label>Caution HT</Label>
-                  <Input
-                    type="number"
-                    inputMode="decimal"
-                    step="0.01"
-                    min="0"
-                    value={contractEditForm.cautionHT}
-                    readOnly
-                  />
-                </div>
-                <div>si
-                  <Label>Caution payée TTC</Label>
-                  <Input
-                    type="number"
-                    inputMode="decimal"
-                    step="0.01"
-                    min="0"
-                    value={contractEditForm.cautionPaidTTC}
-                    disabled
-                    readOnly
-                  />
-                </div>
-                <div>
-                  <Label>Caution payée HT</Label>
-                  <Input
-                    type="number"
-                    inputMode="decimal"
-                    step="0.01"
-                    min="0"
-                    value={contractEditForm.cautionPaidHT}
-                    disabled
-                    readOnly
-                  />
+
+                {/* Caution */}
+                <div className="rounded-xl border border-gray-200 bg-gradient-to-br from-amber-50/50 to-white p-4 dark:border-gray-800 dark:from-amber-950/10 dark:to-white/[0.02]">
+                  <h4 className="mb-4 flex items-center gap-2 text-sm font-semibold text-amber-700 dark:text-amber-400">
+                    <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                    </svg>
+                    Caution
+                  </h4>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <Label>Caution TTC</Label>
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        step="0.01"
+                        min="0"
+                        value={contractEditForm.cautionTTC}
+                        onChange={handleContractEditInputChange("cautionTTC")}
+                        disabled
+                      />
+                    </div>
+                    <div>
+                      <Label>Caution HT</Label>
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        step="0.01"
+                        min="0"
+                        value={contractEditForm.cautionHT}
+                        readOnly
+                        className="bg-gray-100 dark:bg-gray-800"
+                        disabled
+                      />
+                    </div>
+                    <div>
+                      <Label>Caution payée TTC</Label>
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        step="0.01"
+                        min="0"
+                        value={contractEditForm.cautionPaidTTC}
+                        onChange={handleContractEditInputChange("cautionPaidTTC")}
+                      />
+                    </div>
+                    <div>
+                      <Label>Caution payée HT</Label>
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        step="0.01"
+                        min="0"
+                        value={contractEditForm.cautionPaidHT}
+                        readOnly
+                        className="bg-gray-100 dark:bg-gray-800"
+                        disabled
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
             </section>

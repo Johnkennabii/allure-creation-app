@@ -5,6 +5,7 @@ import MonthlyTarget from "../../components/ecommerce/MonthlyTarget";
 import RecentOrders from "../../components/ecommerce/RecentOrders";
 import ActivitiesCard from "../../components/saas/ActivitiesCard";
 import PageMeta from "../../components/common/PageMeta";
+import UnpaidPaymentsWidget from "../../components/widgets/UnpaidPaymentsWidget";
 
 export default function Ecommerce() {
   return (
@@ -22,6 +23,10 @@ export default function Ecommerce() {
 
         <div className="col-span-12 xl:col-span-5">
           <MonthlyTarget />
+        </div>
+
+        <div className="col-span-12">
+          <UnpaidPaymentsWidget />
         </div>
 
         <div className="col-span-12">
