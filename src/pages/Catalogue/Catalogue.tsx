@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useCatalogueFilters } from "../../hooks/catalogue/useCatalogueFilters";
 import { useDressReferences } from "../../hooks/catalogue/useDressReferences";
+import { useDressViewAndDelete } from "../../hooks/catalogue/useDressViewAndDelete";
 import { useDropzone } from "react-dropzone";
 import PageBreadcrumb from "../../components/common/PageBreadCrumb";
 import PageMeta from "../../components/common/PageMeta";
@@ -368,13 +369,23 @@ export default function Catalogue() {
   const { dressTypes, dressSizes, dressConditions, dressColors, contractTypes, fetchReferenceData } =
     useDressReferences();
 
+  // Utilisation du hook de gestion du drawer de visualisation et de la suppression
+  const {
+    viewDrawerOpen,
+    setViewDrawerOpen,
+    viewDress,
+    setViewDress,
+    viewLoading,
+    setViewLoading,
+    deleteTarget,
+    setDeleteTarget,
+    deleteLoading,
+    setDeleteLoading,
+  } = useDressViewAndDelete();
+
   const [dresses, setDresses] = useState<DressDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<UserListItem[]>([]);
-
-  const [viewDrawerOpen, setViewDrawerOpen] = useState(false);
-  const [viewDress, setViewDress] = useState<DressDetails | null>(null);
-  const [viewLoading, setViewLoading] = useState(false);
 
   const [createDrawerOpen, setCreateDrawerOpen] = useState(false);
   const [createForm, setCreateForm] = useState<DressFormState>(emptyFormState);
@@ -391,11 +402,8 @@ export default function Catalogue() {
   // dressTypes, dressSizes, dressConditions, dressColors, referencesLoading,
   // contractTypes, contractTypesLoading sont maintenant fournis par le hook useDressReferences
 
-  const [deleteTarget, setDeleteTarget] = useState<{
-    type: "soft" | "hard";
-    dress: DressDetails | null;
-  }>({ type: "soft", dress: null });
-  const [deleteLoading, setDeleteLoading] = useState(false);
+  // viewDrawerOpen, viewDress, viewLoading, deleteTarget, deleteLoading
+  // sont maintenant fournis par le hook useDressViewAndDelete
 
   const [contractDrawer, setContractDrawer] = useState<{
     open: boolean;
