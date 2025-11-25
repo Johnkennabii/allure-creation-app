@@ -1,6 +1,7 @@
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useCatalogueFilters } from "../../hooks/catalogue/useCatalogueFilters";
 import { useDropzone } from "react-dropzone";
 import PageBreadcrumb from "../../components/common/PageBreadCrumb";
 import PageMeta from "../../components/common/PageMeta";
@@ -343,19 +344,35 @@ export default function Catalogue() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [filtersOpen, setFiltersOpen] = useState(false);
-  const [filters, setFilters] = useState<CatalogueFilters>(defaultFilters);
+  // Utilisation du hook de gestion des filtres
+  const {
+    filters,
+    setFilters,
+    page,
+    setPage,
+    total,
+    setTotal,
+    limit: _limit, // utilisé dans fetchDresses
+    setLimit: _setLimit, // disponible pour future utilisation
+    filtersOpen,
+    setFiltersOpen,
+    availabilityInfo,
+    setAvailabilityInfo,
+    typeUsage,
+    setTypeUsage,
+    sizeUsage,
+    setSizeUsage,
+    colorUsage,
+    setColorUsage,
+    totalPages,
+    availabilitySelected,
+    availabilityDefaultDate,
+    hasFiltersApplied,
+  } = useCatalogueFilters(defaultFilters);
+
   const [dresses, setDresses] = useState<DressDetails[]>([]);
-  const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
-  const [limit, setLimit] = useState(PAGE_SIZE);
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<UserListItem[]>([]);
-
-  const [availabilityInfo, setAvailabilityInfo] = useState<Map<string, boolean>>(new Map());
-  const [typeUsage, setTypeUsage] = useState<Set<string>>(new Set());
-  const [sizeUsage, setSizeUsage] = useState<Set<string>>(new Set());
-  const [colorUsage, setColorUsage] = useState<Set<string>>(new Set());
 
   const [viewDrawerOpen, setViewDrawerOpen] = useState(false);
   const [viewDress, setViewDress] = useState<DressDetails | null>(null);
@@ -422,25 +439,8 @@ export default function Catalogue() {
   >("idle");
   const packageAddonDefaultsRef = useRef<string[]>([]);
 
-  const totalPages = useMemo(() => Math.max(1, Math.ceil(total / Math.max(1, limit))), [total, limit]);
-  const availabilitySelected = Boolean(filters.availabilityStart && filters.availabilityEnd);
-  const availabilityDefaultDate = useMemo(() => {
-    if (filters.availabilityStart && filters.availabilityEnd) {
-      return [new Date(filters.availabilityStart), new Date(filters.availabilityEnd)] as [Date, Date];
-    }
-    return undefined;
-  }, [filters.availabilityStart, filters.availabilityEnd]);
-
-  const hasFiltersApplied = useMemo(() => {
-    return Boolean(
-      filters.typeId ||
-        filters.sizeId ||
-        filters.colorId ||
-        filters.priceMax ||
-        filters.availabilityStart ||
-        filters.availabilityEnd,
-    );
-  }, [filters]);
+  // totalPages, availabilitySelected, availabilityDefaultDate, hasFiltersApplied
+  // sont maintenant fournis par le hook useCatalogueFilters
 
   const vatRatio = useMemo(() => {
     const activeDress = contractDrawer.dress;
@@ -1377,7 +1377,7 @@ export default function Catalogue() {
         }
 
         setDresses(resultingDresses);
-        setLimit(listRes.limit ?? PAGE_SIZE);
+        _setLimit(listRes.limit ?? PAGE_SIZE);
         const computedTotal = availabilityRes ? resultingDresses.length : listRes.total ?? resultingDresses.length;
         setTotal(computedTotal);
       } catch (error) {
