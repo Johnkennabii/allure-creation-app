@@ -4,6 +4,7 @@ import EmailDetailsHeader from "./EmailDetailsHeader";
 import EmailDetailsBottom from "./EmailDetailsBottom";
 import { EmailsAPI, InboxEmail } from "../../../api/endpoints/emails";
 import { useNotification } from "../../../context/NotificationContext";
+import { formatDateTime } from "../../../utils/formatters";
 
 interface EmailWrapperProps {
   emailUid: number;
@@ -59,16 +60,6 @@ export default function EmailWrapper({ emailUid, mailbox, onClose }: EmailWrappe
     }
   };
 
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleString("fr-FR", {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
 
   if (loading) {
     return (
@@ -164,7 +155,7 @@ export default function EmailWrapper({ emailUid, mailbox, onClose }: EmailWrappe
                   <path d="M10 5V10L13.3333 11.6667M18.3333 10C18.3333 14.6024 14.6024 18.3333 10 18.3333C5.39763 18.3333 1.66667 14.6024 1.66667 10C1.66667 5.39763 5.39763 1.66667 10 1.66667C14.6024 1.66667 18.3333 5.39763 18.3333 10Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
                 <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
-                  {formatDate(email.date)}
+                  {formatDateTime(email.date)}
                 </span>
               </div>
               {email.flags.includes("\\Flagged") && (

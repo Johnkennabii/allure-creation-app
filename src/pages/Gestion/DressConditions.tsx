@@ -12,6 +12,7 @@ import { useNotification } from "../../context/NotificationContext";
 import { useAuth } from "../../context/AuthContext";
 import { DressConditionsAPI, type DressCondition } from "../../api/endpoints/dressConditions";
 import { PencilIcon, CloseLineIcon, TrashBinIcon } from "../../icons";
+import { formatDateTimeShort } from "../../utils/formatters";
 
 interface ConditionRow extends DressCondition {
   createdLabel: string;
@@ -22,22 +23,6 @@ interface ConditionRow extends DressCondition {
 type ConfirmState = {
   mode: "soft" | "hard";
   condition: ConditionRow | null;
-};
-
-const formatDate = (value?: string | null) => {
-  if (!value) return "-";
-  try {
-    const date = new Date(value);
-    return date.toLocaleString("fr-FR", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  } catch {
-    return "-";
-  }
 };
 
 const renderDescriptionPreview = (value?: string | null) => {
@@ -102,8 +87,8 @@ export default function DressConditions() {
     () =>
       conditions.map((condition) => ({
         ...condition,
-        createdLabel: formatDate(condition.created_at),
-        updatedLabel: formatDate(condition.updated_at),
+        createdLabel: formatDateTimeShort(condition.created_at),
+        updatedLabel: formatDateTimeShort(condition.updated_at),
         descriptionPreview: renderDescriptionPreview(condition.description),
       })),
     [conditions],

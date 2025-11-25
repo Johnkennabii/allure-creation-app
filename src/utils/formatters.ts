@@ -112,6 +112,35 @@ export const formatDateShort = (value: string | Date | null | undefined): string
 };
 
 /**
+ * Formatage de dates avec heure au format court (ex: "25 nov. 2025, 14:30")
+ * @param value Date au format ISO string ou Date object
+ * @returns Date et heure formatées en format court
+ */
+export const formatDateTimeShort = (value: string | Date | null | undefined): string => {
+  if (!value) {
+    return "—";
+  }
+
+  try {
+    const date = typeof value === "string" ? new Date(value) : value;
+
+    if (isNaN(date.getTime())) {
+      return "—";
+    }
+
+    return date.toLocaleString("fr-FR", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch (error) {
+    return "—";
+  }
+};
+
+/**
  * Formatage de nombres avec séparateurs
  * @param value Nombre à formater
  * @param decimals Nombre de décimales (défaut: 0)

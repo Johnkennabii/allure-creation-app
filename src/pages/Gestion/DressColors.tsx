@@ -11,6 +11,7 @@ import { useNotification } from "../../context/NotificationContext";
 import { useAuth } from "../../context/AuthContext";
 import { DressColorsAPI, type DressColor } from "../../api/endpoints/dressColors";
 import { PencilIcon, CloseLineIcon, TrashBinIcon } from "../../icons";
+import { formatDateTimeShort } from "../../utils/formatters";
 
 interface ColorRow extends DressColor {
   createdLabel: string;
@@ -22,22 +23,6 @@ interface ColorRow extends DressColor {
 type ConfirmState = {
   mode: "soft" | "hard";
   color: ColorRow | null;
-};
-
-const formatDate = (value?: string | null) => {
-  if (!value) return "-";
-  try {
-    const date = new Date(value);
-    return date.toLocaleString("fr-FR", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  } catch {
-    return "-";
-  }
 };
 
 const renderDescriptionPreview = (value?: string | null) => {
@@ -139,8 +124,8 @@ export default function DressColors() {
         const hexCodeDisplay = isValidHex(normalizedHex) ? normalizedHex : "";
         return {
           ...color,
-          createdLabel: formatDate(color.created_at),
-          updatedLabel: formatDate(color.updated_at),
+          createdLabel: formatDateTimeShort(color.created_at),
+          updatedLabel: formatDateTimeShort(color.updated_at),
           descriptionPreview: renderDescriptionPreview(color.description),
           hexCodeDisplay,
         };

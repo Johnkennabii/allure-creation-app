@@ -12,6 +12,7 @@ import { useNotification } from "../../context/NotificationContext";
 import { useAuth } from "../../context/AuthContext";
 import { DressTypesAPI, type DressType } from "../../api/endpoints/dressTypes";
 import { PencilIcon, CloseLineIcon, TrashBinIcon } from "../../icons";
+import { formatDateTimeShort } from "../../utils/formatters";
 
 interface TypeRow extends DressType {
   createdLabel: string;
@@ -22,22 +23,6 @@ interface TypeRow extends DressType {
 type ConfirmState = {
   mode: "soft" | "hard";
   type: TypeRow | null;
-};
-
-const formatDate = (value?: string | null) => {
-  if (!value) return "-";
-  try {
-    const date = new Date(value);
-    return date.toLocaleString("fr-FR", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  } catch {
-    return "-";
-  }
 };
 
 const renderDescriptionPreview = (value?: string | null) => {
@@ -102,8 +87,8 @@ export default function DressTypes() {
     () =>
       types.map((type) => ({
         ...type,
-        createdLabel: formatDate(type.created_at),
-        updatedLabel: formatDate(type.updated_at),
+        createdLabel: formatDateTimeShort(type.created_at),
+        updatedLabel: formatDateTimeShort(type.updated_at),
         descriptionPreview: renderDescriptionPreview(type.description),
       })),
     [types],

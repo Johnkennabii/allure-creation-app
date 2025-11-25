@@ -11,6 +11,7 @@ import { useNotification } from "../../context/NotificationContext";
 import { useAuth } from "../../context/AuthContext";
 import { DressSizesAPI, type DressSize } from "../../api/endpoints/dressSizes";
 import { PencilIcon, CloseLineIcon, TrashBinIcon } from "../../icons";
+import { formatDateTimeShort } from "../../utils/formatters";
 
 interface SizeRow extends DressSize {
   createdLabel: string;
@@ -20,22 +21,6 @@ interface SizeRow extends DressSize {
 type ConfirmState = {
   mode: "soft" | "hard";
   size: SizeRow | null;
-};
-
-const formatDate = (value?: string | null) => {
-  if (!value) return "-";
-  try {
-    const date = new Date(value);
-    return date.toLocaleString("fr-FR", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  } catch {
-    return "-";
-  }
 };
 
 const TooltipWrapper = ({ title, children }: { title: string; children: React.ReactNode }) => (
@@ -93,8 +78,8 @@ export default function DressSizes() {
     () =>
       sizes.map((size) => ({
         ...size,
-        createdLabel: formatDate(size.created_at),
-        updatedLabel: formatDate(size.updated_at),
+        createdLabel: formatDateTimeShort(size.created_at),
+        updatedLabel: formatDateTimeShort(size.updated_at),
       })),
     [sizes],
   );
