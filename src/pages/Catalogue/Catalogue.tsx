@@ -45,6 +45,14 @@ import { DressColorsAPI, type DressColor } from "../../api/endpoints/dressColors
 import { compressImages } from "../../utils/imageCompression";
 import { formatCurrency as formatCurrencyUtil } from "../../utils/formatters";
 import {
+  PAGE_SIZE,
+  FILTER_USAGE_PAGE_SIZE,
+  MAX_IMAGES,
+  FALLBACK_IMAGE,
+  NEW_BADGE_THRESHOLD_MS,
+  DAILY_CONTRACT_TYPE_ID,
+} from "../../constants/catalogue";
+import {
   CheckLineIcon,
   DollarLineIcon,
 
@@ -70,13 +78,6 @@ import {
   type QuickCustomerFormState,
 } from "./types";
 import type { QuickSearchNavigationPayload } from "../../types/quickSearch";
-
-const PAGE_SIZE = 12;
-const FILTER_USAGE_PAGE_SIZE = 200;
-const MAX_IMAGES = 5;
-const FALLBACK_IMAGE = "/images/dress/defaultDress.png";
-const NEW_BADGE_THRESHOLD_MS = 3 * 24 * 60 * 60 * 1000; // 3 jours
-const DAILY_CONTRACT_TYPE_ID = "89f29652-c045-43ec-b4b2-ca32e913163d";
 
 const defaultFilters: CatalogueFilters = {
   typeId: "",
