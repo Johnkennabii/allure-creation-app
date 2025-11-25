@@ -5,6 +5,7 @@ import { Dropdown } from "../ui/dropdown/Dropdown";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import { MoreDotIcon } from "../../icons";
 import { ContractsAPI } from "../../api/endpoints/contracts";
+import { formatNumber } from "../../utils/formatters";
 
 export default function MonthlyTarget() {
   const [isOpen, setIsOpen] = useState(false);
@@ -141,10 +142,7 @@ export default function MonthlyTarget() {
     setIsOpen(false);
   }
   const formatCurrency = (amount: number) => {
-    return amount.toLocaleString("fr-FR", {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }) + " €";
+    return formatNumber(amount, 0) + " €";
   };
 
   const getDifference = () => {

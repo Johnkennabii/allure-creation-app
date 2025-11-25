@@ -1,5 +1,6 @@
 import type { AddonsTotals } from "./types";
 import DatePicker from "../form/date-picker";
+import { formatCurrency } from "../../utils/formatters";
 
 interface RentalPeriodSectionProps {
   contractDatePickerId: string;
@@ -10,25 +11,6 @@ interface RentalPeriodSectionProps {
   contractAvailabilityStatus: "idle" | "checking" | "available" | "unavailable" | "error";
   onContractDateChange: (dates: Date[]) => void;
 }
-
-// Helper function
-const parseNumber = (value: string): number | null => {
-  const cleaned = value.replace(/\s/g, "").replace(/,/g, ".");
-  const num = Number.parseFloat(cleaned);
-  return Number.isNaN(num) ? null : num;
-};
-
-const formatCurrency = (value?: string | number | null) => {
-  if (value === undefined || value === null || value === "") return "-";
-  const numeric = typeof value === "number" ? value : parseNumber(String(value));
-  if (numeric === null) return "-";
-  return new Intl.NumberFormat("fr-FR", {
-    style: "currency",
-    currency: "EUR",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(numeric);
-};
 
 export default function RentalPeriodSection({
   contractDatePickerId,

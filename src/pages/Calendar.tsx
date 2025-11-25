@@ -13,6 +13,7 @@ import { ContractsAPI, type ContractFullView } from "../api/endpoints/contracts"
 import SpinnerOne from "../components/ui/spinner/SpinnerOne";
 import Badge from "../components/ui/badge/Badge";
 import Button from "../components/ui/button/Button";
+import { formatCurrency, formatDateTime } from "../utils/formatters";
 
 interface ContractEvent extends EventInput {
   id: string;
@@ -109,24 +110,6 @@ const Calendar: React.FC = () => {
     });
   };
 
-  const formatCurrency = (value: string | number | null | undefined): string => {
-    const num = Number(value) || 0;
-    return new Intl.NumberFormat("fr-FR", {
-      style: "currency",
-      currency: "EUR",
-    }).format(num);
-  };
-
-  const formatDate = (dateString: string | null | undefined): string => {
-    if (!dateString) return "-";
-    return new Date(dateString).toLocaleDateString("fr-FR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
 
   return (
     <>
@@ -215,7 +198,7 @@ const Calendar: React.FC = () => {
                       Début
                     </p>
                     <p className="text-base text-gray-900 dark:text-white">
-                      {formatDate(selectedContract.start_datetime)}
+                      {formatDateTime(selectedContract.start_datetime)}
                     </p>
                   </div>
                   <div>
@@ -223,7 +206,7 @@ const Calendar: React.FC = () => {
                       Fin
                     </p>
                     <p className="text-base text-gray-900 dark:text-white">
-                      {formatDate(selectedContract.end_datetime)}
+                      {formatDateTime(selectedContract.end_datetime)}
                     </p>
                   </div>
                 </div>

@@ -10,6 +10,7 @@ import Badge from "../ui/badge/Badge";
 import { DressesAPI, DressDetails } from "../../api/endpoints/dresses";
 import { ContractsAPI } from "../../api/endpoints/contracts";
 import * as XLSX from "xlsx";
+import { formatCurrency } from "../../utils/formatters";
 
 interface DressRentalStats {
   dress: DressDetails;
@@ -107,11 +108,6 @@ export default function RecentOrders() {
   };
 
   const displayedDresses = dressStats.slice(0, limit);
-
-  const formatCurrency = (amount: number | string) => {
-    const value = typeof amount === 'string' ? parseFloat(amount) : amount;
-    return `${value.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
-  };
 
   const getRentalBadgeColor = (count: number): "success" | "warning" | "error" => {
     if (count === 0) return "error";

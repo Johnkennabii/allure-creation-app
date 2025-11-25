@@ -1,5 +1,6 @@
 import type { ContractAddon, ContractMode, AddonsTotals } from "./types";
 import Checkbox from "../form/input/Checkbox";
+import { formatCurrency } from "../../utils/formatters";
 
 interface OptionsSectionProps {
   mode: ContractMode;
@@ -17,18 +18,6 @@ const parseNumber = (value: string): number | null => {
   const cleaned = value.replace(/\s/g, "").replace(/,/g, ".");
   const num = Number.parseFloat(cleaned);
   return Number.isNaN(num) ? null : num;
-};
-
-const formatCurrency = (value?: string | number | null) => {
-  if (value === undefined || value === null || value === "") return "-";
-  const numeric = typeof value === "number" ? value : parseNumber(String(value));
-  if (numeric === null) return "-";
-  return new Intl.NumberFormat("fr-FR", {
-    style: "currency",
-    currency: "EUR",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(numeric);
 };
 
 const toNumeric = (value: unknown): number => {
