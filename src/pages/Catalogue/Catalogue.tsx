@@ -377,6 +377,7 @@ export default function Catalogue() {
   const [dresses, setDresses] = useState<DressDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<UserListItem[]>([]);
+  const [todayAvailabilityInfo, setTodayAvailabilityInfo] = useState<Map<string, boolean>>(new Map());
 
   // dressTypes, dressSizes, dressConditions, dressColors, referencesLoading,
   // contractTypes, contractTypesLoading sont maintenant fournis par le hook useDressReferences
@@ -1197,10 +1198,20 @@ export default function Catalogue() {
           ? DressesAPI.listAvailability(availabilityStartIso, availabilityEndIso)
           : Promise.resolve(null);
 
-        const [listRes, availabilityRes, computedTypeUsage, computedSizeUsage, computedColorUsage] =
+        // Vérifier la disponibilité pour aujourd'hui (pour le badge "Réservée")
+        const today = new Date();
+        const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        const todayEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59);
+        const todayAvailabilityPromise = DressesAPI.listAvailability(
+          todayStart.toISOString(),
+          todayEnd.toISOString()
+        );
+
+        const [listRes, availabilityRes, todayAvailabilityRes, computedTypeUsage, computedSizeUsage, computedColorUsage] =
           await Promise.all([
             listPromise,
             availabilityPromise,
+            todayAvailabilityPromise,
             typeUsagePromise,
             sizeUsagePromise,
             colorUsagePromise,
@@ -1217,6 +1228,16 @@ export default function Catalogue() {
           resultingDresses = resultingDresses.filter((dress) => availabilityMap.get(dress.id) !== false);
         } else {
           setAvailabilityInfo(new Map());
+        }
+
+        // Traiter la disponibilité pour aujourd'hui
+        if (todayAvailabilityRes) {
+          const todayAvailabilityMap = new Map(
+            todayAvailabilityRes.data.map((item) => [item.id, item.isAvailable])
+          );
+          setTodayAvailabilityInfo(todayAvailabilityMap);
+        } else {
+          setTodayAvailabilityInfo(new Map());
         }
 
         typeIdsOnPage = new Set(
@@ -2519,6 +2540,7 @@ export default function Catalogue() {
                     dress={dress}
                     availabilityStatus={availabilityInfo.get(dress.id)}
                     availabilitySelected={availabilitySelected}
+                    isReservedToday={todayAvailabilityInfo.get(dress.id) === false}
                     canCreateContract={canCreateContract}
                     canManage={canManage}
                     isAdmin={isAdmin}

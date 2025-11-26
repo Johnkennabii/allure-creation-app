@@ -1,7 +1,6 @@
 import { memo } from "react";
 import type { DressDetails } from "../../../api/endpoints/dresses";
 import CardThree from "../../../components/cards/card-with-image/CardThree";
-import Badge from "../../../components/ui/badge/Badge";
 import { FALLBACK_IMAGE, NEW_BADGE_THRESHOLD_MS } from "../../../constants/catalogue";
 import {
   CheckLineIcon,
@@ -88,6 +87,7 @@ interface DressCardProps {
   dress: DressDetails;
   availabilityStatus?: boolean;
   availabilitySelected: boolean;
+  isReservedToday?: boolean;
   canCreateContract: boolean;
   canManage: boolean;
   isAdmin: boolean;
@@ -107,6 +107,7 @@ const DressCard = memo<DressCardProps>(({
   dress,
   availabilityStatus,
   availabilitySelected,
+  isReservedToday,
   canCreateContract,
   canManage,
   isAdmin,
@@ -139,22 +140,66 @@ const DressCard = memo<DressCardProps>(({
   }
 
   const badges = dress.deleted_at ? (
-    <Badge variant="light" color="warning" size="sm">
-      Désactivée
-    </Badge>
+    <div className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 px-3 py-1.5 shadow-sm dark:border-amber-500/30 dark:from-amber-950/50 dark:to-orange-950/50">
+      <svg className="h-4 w-4 text-amber-600 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+      </svg>
+      <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">Désactivée</span>
+    </div>
   ) : null;
 
   const overlayBadges = (
     <div className="flex flex-wrap items-center justify-end gap-2">
       {isDressNew(dress.created_at) ? (
-        <Badge variant="solid" color="success" size="sm">
-          Nouveau
-        </Badge>
+        <div className="group/badge animate-in fade-in slide-in-from-right-2 duration-300">
+          <div className="relative overflow-hidden rounded-full backdrop-blur-md">
+            {/* Glassmorphism effect */}
+            <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/90 to-teal-600/90 dark:from-emerald-400/90 dark:to-teal-500/90" />
+            {/* Shine effect on hover */}
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent translate-x-[-100%] group-hover/badge:translate-x-[100%] transition-transform duration-700" />
+            {/* Content */}
+            <div className="relative flex items-center gap-1.5 px-3 py-1.5">
+              <svg className="h-3.5 w-3.5 text-white drop-shadow-sm" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+              </svg>
+              <span className="text-xs font-bold text-white drop-shadow-sm">Nouveau</span>
+            </div>
+          </div>
+        </div>
       ) : null}
       {dress.type_name ? (
-        <Badge variant="solid" color="primary" size="sm">
-          {dress.type_name}
-        </Badge>
+        <div className="group/badge animate-in fade-in slide-in-from-right-2 duration-300 delay-75">
+          <div className="relative overflow-hidden rounded-full backdrop-blur-md">
+            {/* Glassmorphism effect */}
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-500/85 to-indigo-600/85 dark:from-blue-400/85 dark:to-indigo-500/85" />
+            {/* Shine effect on hover */}
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent translate-x-[-100%] group-hover/badge:translate-x-[100%] transition-transform duration-700" />
+            {/* Content */}
+            <div className="relative flex items-center gap-1.5 px-3 py-1.5">
+              <svg className="h-3.5 w-3.5 text-white drop-shadow-sm" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+              </svg>
+              <span className="text-xs font-bold text-white drop-shadow-sm">{dress.type_name}</span>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {isReservedToday ? (
+        <div className="group/badge animate-in fade-in slide-in-from-right-2 duration-300 delay-150">
+          <div className="relative overflow-hidden rounded-full backdrop-blur-md">
+            {/* Glassmorphism effect */}
+            <div className="absolute inset-0 bg-gradient-to-br from-rose-500/90 to-red-600/90 dark:from-rose-400/90 dark:to-red-500/90" />
+            {/* Pulse animation */}
+            <div className="absolute inset-0 animate-pulse bg-rose-300/30" />
+            {/* Content */}
+            <div className="relative flex items-center gap-1.5 px-3 py-1.5">
+              <svg className="h-3.5 w-3.5 text-white drop-shadow-sm" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span className="text-xs font-bold text-white drop-shadow-sm">Réservée</span>
+            </div>
+          </div>
+        </div>
       ) : null}
     </div>
   );
