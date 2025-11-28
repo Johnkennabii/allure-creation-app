@@ -1,7 +1,10 @@
-import { memo, useMemo } from "react";
+import { memo, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { DressDetails } from "../../../api/endpoints/dresses";
 import CardThree from "../../../components/cards/card-with-image/CardThree";
 import StackedBadges from "./StackedBadges";
+import FlyingImage from "../../../components/animations/FlyingImage";
+import { useCart } from "../../../context/CartContext";
 import { FALLBACK_IMAGE, NEW_BADGE_THRESHOLD_MS } from "../../../constants/catalogue";
 import {
   CheckLineIcon,
@@ -119,6 +122,46 @@ const DressCard = memo<DressCardProps>(({
   onSoftDelete,
   onHardDelete,
 }) => {
+  const { addDress, hasDress } = useCart();
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const [flyingAnimation, setFlyingAnimation] = useState<{
+    imageUrl: string;
+    startX: number;
+    startY: number;
+    endX: number;
+    endY: number;
+  } | null>(null);
+
+  const isInCart = hasDress(dress.id);
+
+  const handleAddToCart = () => {
+    if (isInCart) return;
+
+    // Déclencher l'animation flying
+    const cartIcon = document.querySelector('[aria-label*="Panier"]');
+    if (buttonRef.current && cartIcon) {
+      const buttonRect = buttonRef.current.getBoundingClientRect();
+      const cartRect = cartIcon.getBoundingClientRect();
+      const imageUrl = dress.images[0] || FALLBACK_IMAGE;
+
+      setFlyingAnimation({
+        imageUrl,
+        startX: buttonRect.left + buttonRect.width / 2,
+        startY: buttonRect.top + buttonRect.height / 2,
+        endX: cartRect.left + cartRect.width / 2,
+        endY: cartRect.top + cartRect.height / 2,
+      });
+    }
+
+    // Ajouter au panier
+    addDress(dress);
+
+    // Réinitialiser l'animation après un délai
+    setTimeout(() => {
+      setFlyingAnimation(null);
+    }, 900);
+  };
+
   const infoItems = [
     { label: "Type", value: dress.type_name ?? "-" },
     { label: "Taille", value: dress.size_name ?? "-" },
@@ -204,8 +247,59 @@ const DressCard = memo<DressCardProps>(({
   }, [dress.created_at, dress.type_name, isReservedToday]);
 
   const actionFooter = (
-    <div className="flex flex-wrap items-center gap-2">
-      <IconTooltip title="Voir la robe">
+    <div className="flex flex-col gap-3">
+      {/* Bouton principal: Ajouter au panier */}
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={handleAddToCart}
+        disabled={isInCart}
+        className={`
+          group relative w-full overflow-hidden rounded-lg px-4 py-3 text-sm font-semibold
+          transition-all duration-300
+          ${
+            isInCart
+              ? "cursor-not-allowed bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-600"
+              : "bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-lg hover:shadow-xl hover:from-blue-600 hover:to-indigo-700 active:scale-95 dark:from-blue-600 dark:to-indigo-700"
+          }
+        `}
+        aria-label={isInCart ? "Déjà dans le panier" : "Ajouter au panier"}
+      >
+        {/* Shine effect */}
+        {!isInCart && (
+          <span className="absolute inset-0 translate-x-[-100%] bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-700 group-hover:translate-x-[100%]" />
+        )}
+
+        <span className="relative flex items-center justify-center gap-2">
+          {isInCart ? (
+            <>
+              <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                <path
+                  fillRule="evenodd"
+                  d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              Déjà dans le panier
+            </>
+          ) : (
+            <>
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M12 4v16m8-8H4"
+                />
+              </svg>
+              Ajouter au panier
+            </>
+          )}
+        </span>
+      </button>
+
+      {/* Actions secondaires */}
+      <div className="flex flex-wrap items-center gap-2">
+        <IconTooltip title="Voir la robe">
         <button
           type="button"
           onClick={() => onView(dress)}
@@ -287,27 +381,43 @@ const DressCard = memo<DressCardProps>(({
           </button>
         </IconTooltip>
       ) : null}
+      </div>
     </div>
   );
 
   return (
-    <CardThree
-      key={dress.id}
-      title={dress.name || "Robe sans nom"}
-      subtitle={dress.reference ? `Réf. ${dress.reference}` : undefined}
-      description={
-        dress.type_description ||
-        [dress.type_name, dress.condition_name].filter(Boolean).join(" • ") ||
-        undefined
-      }
-      images={dress.images}
-      fallbackImage={FALLBACK_IMAGE}
-      infoItems={infoItems}
-      badges={badges}
-      footer={actionFooter}
-      overlayBadges={overlayBadges}
-      imageClassName="w-full h-80 object-cover bg-white"
-    />
+    <>
+      <CardThree
+        key={dress.id}
+        title={dress.name || "Robe sans nom"}
+        subtitle={dress.reference ? `Réf. ${dress.reference}` : undefined}
+        description={
+          dress.type_description ||
+          [dress.type_name, dress.condition_name].filter(Boolean).join(" • ") ||
+          undefined
+        }
+        images={dress.images}
+        fallbackImage={FALLBACK_IMAGE}
+        infoItems={infoItems}
+        badges={badges}
+        footer={actionFooter}
+        overlayBadges={overlayBadges}
+        imageClassName="w-full h-80 object-cover bg-white"
+      />
+
+      {/* Animation flying vers le panier */}
+      {flyingAnimation &&
+        createPortal(
+          <FlyingImage
+            imageUrl={flyingAnimation.imageUrl}
+            startX={flyingAnimation.startX}
+            startY={flyingAnimation.startY}
+            endX={flyingAnimation.endX}
+            endY={flyingAnimation.endY}
+          />,
+          document.body
+        )}
+    </>
   );
 });
 
