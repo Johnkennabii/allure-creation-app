@@ -37,7 +37,8 @@ export default function MonthlyTarget() {
         let todayTotal = 0;
 
         contracts.forEach((contract) => {
-          const contractDate = new Date(contract.start_datetime);
+          if (!contract.created_at) return;
+          const contractDate = new Date(contract.created_at);
           const contractYear = contractDate.getFullYear();
           const contractMonth = contractDate.getMonth();
           const contractDay = contractDate.getDate();
@@ -162,7 +163,7 @@ export default function MonthlyTarget() {
               Objectif Mensuel
             </h3>
             <p className="mt-1 text-gray-500 text-theme-sm dark:text-gray-400">
-              Comparaison avec le mois précédent
+              Basé sur la date de création des contrats
             </p>
           </div>
           <div className="relative inline-block">

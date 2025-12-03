@@ -24,7 +24,8 @@ export default function
 
         // Calculer les sommes par mois
         contracts.forEach((contract) => {
-          const contractDate = new Date(contract.start_datetime);
+          if (!contract.created_at) return;
+          const contractDate = new Date(contract.created_at);
           const contractYear = contractDate.getFullYear();
           const contractMonth = contractDate.getMonth(); // 0-11
 
@@ -180,7 +181,7 @@ export default function
             Statistiques {currentYear}
           </h3>
           <p className="mt-1 text-gray-500 text-theme-sm dark:text-gray-400">
-            Comparaison des prix totaux et des acomptes payés par mois
+            Basé sur la date de création des contrats
           </p>
         </div>
         <div className="flex items-start w-full gap-3 sm:justify-end">
