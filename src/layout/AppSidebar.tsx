@@ -170,7 +170,6 @@ const navItems: NavItem[] = [
       { name: "Pricing Tables", path: "/pricing-tables" },
       { name: "FAQ", path: "/faq" },
       { name: "API Keys", path: "/api-keys", new: true },
-      { name: "Integrations", path: "/integrations", new: true },
       { name: "Blank Page", path: "/blank" },
       { name: "404 Error", path: "/error-404" },
       { name: "500 Error", path: "/error-500" },
@@ -180,6 +179,7 @@ const navItems: NavItem[] = [
       { name: "Success", path: "/success" },
     ],
   },
+
 ];
 
 const othersItems: NavItem[] = [
@@ -241,6 +241,21 @@ const othersItems: NavItem[] = [
 
 const supportItems: NavItem[] = [
   {
+    name: "E-commerce",
+    icon: <PageIcon />,
+    requiredRoles: ["ADMIN"],
+    subItems: [
+      { name: "Integrations", path: "/integrations", new: true },
+    ],
+  },
+    {
+    icon: <MailIcon />,
+    name: "Email",
+    path: "/inbox",
+    requiredRoles: ["ADMIN", "MANAGER"],
+    new: true,
+  },
+  {
     icon: <ChatIcon />,
     name: "Chat",
     path: "/chat",
@@ -252,7 +267,7 @@ const supportItems: NavItem[] = [
     new: true,
     requiredRoles: ["ADMIN"],
     subItems: [
-      { name: "Ticket List", path: "/support-tickets" },
+      { name: "Ticket List", path: "/support-tickets" , new: true },
       { name: "Ticket Reply", path: "/support-ticket-reply" },
     ],
   },
@@ -261,7 +276,6 @@ const supportItems: NavItem[] = [
     name: "Email",
     requiredRoles: ["ADMIN"],
     subItems: [
-      { name: "Inbox", path: "/inbox" },
       { name: "Details", path: "/inbox-details" },
     ],
   },
