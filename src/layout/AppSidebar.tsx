@@ -74,7 +74,7 @@ const navItems: NavItem[] = [
     icon: <HiOutlineUserGroup />,
     name: "Prospects",
     path: "/prospects",
-    requiredRoles: ["ADMIN", "MANAGER", "COLLABORATOR"],
+    requiredRoles: ["ADMIN"],
   },
   {
     icon: <FiUsers/>,
@@ -269,14 +269,6 @@ const supportItems: NavItem[] = [
     subItems: [
       { name: "Ticket List", path: "/support-tickets" , new: true },
       { name: "Ticket Reply", path: "/support-ticket-reply" },
-    ],
-  },
-  {
-    icon: <MailIcon />,
-    name: "Email",
-    requiredRoles: ["ADMIN"],
-    subItems: [
-      { name: "Details", path: "/inbox-details" },
     ],
   },
 ];

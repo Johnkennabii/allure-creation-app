@@ -4,7 +4,8 @@ import IntegrationCard from "./IntegrationCard";
 import MaintenanceSettingsModal from "./MaintenanceSettingsModal";
 
 const WEBHOOK_SECRET = "b424e37efd29da5a71682bcd84a9a140ff17f597eaa56f45a058a644d4f8df29";
-const API_URL = "https://www.allure-creation.fr/api/webhook/maintenance";
+const API_URL_POST = "https://api.allure-creation.fr/api/webhook/maintenance"; // Pour activer/désactiver
+const API_URL_GET = "https://www.allure-creation.fr/api/maintenance"; // Pour vérifier le statut
 
 interface MaintenanceStatus {
   enabled: boolean;
@@ -43,11 +44,8 @@ export default function MaintenanceModeCard() {
   const fetchStatus = async () => {
     try {
       setChecking(true);
-      const response = await fetch(API_URL, {
+      const response = await fetch(API_URL_GET, {
         method: "GET",
-        headers: {
-          "X-Webhook-Secret": WEBHOOK_SECRET,
-        },
       });
 
       if (response.ok) {
@@ -70,11 +68,11 @@ export default function MaintenanceModeCard() {
     try {
       const payload: any = { enabled };
 
-      const response = await fetch(API_URL, {
+      const response = await fetch(API_URL_POST, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-Webhook-Secret": WEBHOOK_SECRET,
+          "X-Maintenance-Secret": WEBHOOK_SECRET,
         },
         body: JSON.stringify(payload),
       });
