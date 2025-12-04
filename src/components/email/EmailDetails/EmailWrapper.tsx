@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import SimpleBar from "simplebar-react";
 import EmailDetailsHeader from "./EmailDetailsHeader";
 import EmailDetailsBottom from "./EmailDetailsBottom";
+import EmailReplyModal from "../EmailReplyModal";
 import { EmailsAPI, InboxEmail } from "../../../api/endpoints/emails";
 import { useNotification } from "../../../context/NotificationContext";
 import { formatDateTime } from "../../../utils/formatters";
@@ -15,6 +16,7 @@ interface EmailWrapperProps {
 export default function EmailWrapper({ emailUid, mailbox, onClose }: EmailWrapperProps) {
   const [email, setEmail] = useState<InboxEmail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [replyMode, setReplyMode] = useState<"reply" | "reply-all" | "forward" | null>(null);
   const { notify } = useNotification();
 
   useEffect(() => {
@@ -261,7 +263,23 @@ export default function EmailWrapper({ emailUid, mailbox, onClose }: EmailWrappe
           )}
         </div>
       </SimpleBar>
-      <EmailDetailsBottom />
+      <EmailDetailsBottom
+        onReply={() => setReplyMode("reply")}
+        onReplyAll={() => setReplyMode("reply-all")}
+        onForward={() => setReplyMode("forward")}
+      />
+
+      {replyMode && (
+        <EmailReplyModal
+          emailUid={emailUid}
+          mailbox={mailbox}
+          mode={replyMode}
+          onClose={() => setReplyMode(null)}
+          onSuccess={() => {
+            notify("success", "Succès", "Email envoyé avec succès");
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -131,6 +131,39 @@ export interface SendEmailPayload {
   attachments?: File[];
 }
 
+export interface EmailAttachmentPayload {
+  filename: string;
+  content: string; // Base64
+  contentType: string;
+  encoding: "base64";
+}
+
+export interface ReplyEmailPayload {
+  body: string; // HTML
+  bodyText: string; // Text version
+  attachments?: EmailAttachmentPayload[];
+}
+
+export interface ReplyAllEmailPayload {
+  body: string; // HTML
+  bodyText: string; // Text version
+  attachments?: EmailAttachmentPayload[];
+}
+
+export interface ForwardEmailPayload {
+  to: string; // Email destinataire
+  message: string; // HTML message d'introduction
+  messageText: string; // Text version du message
+  includeAttachments?: boolean;
+}
+
+export interface EmailActionResponse {
+  success: boolean;
+  message?: string;
+  error?: string;
+  details?: string;
+}
+
 export interface EmailConfig {
   email: string;
   imapHost: string;
@@ -279,6 +312,27 @@ export const EmailsAPI = {
     }
 
     return response.blob();
+  },
+
+  /**
+   * Répond à un email
+   */
+  async reply(uid: number, mailbox: string, payload: ReplyEmailPayload): Promise<EmailActionResponse> {
+    return httpClient.post(`/mails/${mailbox}/${uid}/reply`, payload);
+  },
+
+  /**
+   * Répond à tous les destinataires d'un email
+   */
+  async replyAll(uid: number, mailbox: string, payload: ReplyAllEmailPayload): Promise<EmailActionResponse> {
+    return httpClient.post(`/mails/${mailbox}/${uid}/reply-all`, payload);
+  },
+
+  /**
+   * Transfère un email à un destinataire
+   */
+  async forward(uid: number, mailbox: string, payload: ForwardEmailPayload): Promise<EmailActionResponse> {
+    return httpClient.post(`/mails/${mailbox}/${uid}/forward`, payload);
   },
 
   /**
