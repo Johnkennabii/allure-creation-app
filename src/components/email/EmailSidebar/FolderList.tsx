@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { EmailsAPI, EmailFolder } from "../../../api/endpoints/emails";
 import { useNotification } from "../../../context/NotificationContext";
 import { useAuth } from "../../../context/AuthContext";
+import EmailFolderDrawer from "./EmailFolderDrawer";
 
 interface FolderListProps {
   onFolderSelect: (folder: string) => void;
@@ -17,9 +18,7 @@ interface FolderNode extends EmailFolder {
 export default function FolderList({ onFolderSelect, selectedFolder }: FolderListProps) {
   const [folders, setFolders] = useState<FolderNode[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [newFolderName, setNewFolderName] = useState("");
-  const [creating, setCreating] = useState(false);
+  const [showDrawer, setShowDrawer] = useState(false);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const { notify } = useNotification();
   const { user } = useAuth();
@@ -104,30 +103,9 @@ export default function FolderList({ onFolderSelect, selectedFolder }: FolderLis
     });
   };
 
-  const handleCreateFolder = async () => {
-    if (!newFolderName.trim()) {
-      notify("error", "Erreur", "Veuillez saisir un nom de dossier");
-      return;
-    }
-
-    setCreating(true);
-    try {
-      // Créer le dossier sous INBOX
-      const folderPath = `INBOX/${newFolderName.trim()}`;
-      await EmailsAPI.createFolder({ name: folderPath });
-
-      notify("success", "Dossier créé", `Le dossier "${newFolderName}" a été créé avec succès`);
-      setNewFolderName("");
-      setShowCreateModal(false);
-
-      // Rafraîchir la liste
-      await fetchFolders();
-    } catch (error) {
-      console.error("Erreur lors de la création du dossier:", error);
-      notify("error", "Erreur", "Impossible de créer le dossier");
-    } finally {
-      setCreating(false);
-    }
+  const handleFolderCreated = async () => {
+    // Rafraîchir la liste après création
+    await fetchFolders();
   };
 
   const renderFolder = (folder: FolderNode): React.ReactElement => {
@@ -218,7 +196,7 @@ export default function FolderList({ onFolderSelect, selectedFolder }: FolderLis
           DOSSIERS
         </h3>
         <button
-          onClick={() => setShowCreateModal(true)}
+          onClick={() => setShowDrawer(true)}
           className="flex h-6 w-6 items-center justify-center rounded text-gray-500 hover:bg-brand-50 hover:text-brand-500 dark:hover:bg-brand-500/[0.12] dark:hover:text-brand-400 transition-colors"
           title="Créer un dossier"
         >
@@ -238,86 +216,12 @@ export default function FolderList({ onFolderSelect, selectedFolder }: FolderLis
         </ul>
       )}
 
-      {/* Modal de création de dossier */}
-      {showCreateModal && (
-        <>
-          <div
-            className="fixed inset-0 z-50 bg-gray-900/50 backdrop-blur-sm"
-            onClick={() => !creating && setShowCreateModal(false)}
-          />
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="relative w-full max-w-md rounded-2xl border border-gray-200 bg-white shadow-xl dark:border-gray-800 dark:bg-gray-900">
-              <div className="flex items-center justify-between border-b border-gray-200 p-6 dark:border-gray-800">
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                  Créer un nouveau dossier
-                </h2>
-                <button
-                  onClick={() => !creating && setShowCreateModal(false)}
-                  disabled={creating}
-                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 disabled:opacity-50"
-                >
-                  <svg
-                    className="h-6 w-6"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M6 18L18 6M6 6l12 12"
-                    />
-                  </svg>
-                </button>
-              </div>
-
-              <div className="p-6">
-                <div className="mb-6">
-                  <label htmlFor="folderName" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Nom du dossier
-                  </label>
-                  <input
-                    type="text"
-                    id="folderName"
-                    value={newFolderName}
-                    onChange={(e) => setNewFolderName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && newFolderName.trim() && !creating) {
-                        handleCreateFolder();
-                      }
-                    }}
-                    placeholder="Ex: Clients"
-                    className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-                    disabled={creating}
-                    autoFocus
-                  />
-                  <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                    Le dossier sera créé sous INBOX
-                  </p>
-                </div>
-
-                <div className="flex items-center justify-end gap-3">
-                  <button
-                    onClick={() => setShowCreateModal(false)}
-                    disabled={creating}
-                    className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-                  >
-                    Annuler
-                  </button>
-                  <button
-                    onClick={handleCreateFolder}
-                    disabled={creating || !newFolderName.trim()}
-                    className="rounded-lg bg-brand-500 px-4 py-2 text-sm font-medium text-white shadow-theme-xs hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {creating ? "Création..." : "Créer"}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
+      {/* Drawer de création de dossier */}
+      <EmailFolderDrawer
+        isOpen={showDrawer}
+        onClose={() => setShowDrawer(false)}
+        onFolderCreated={handleFolderCreated}
+      />
     </div>
   );
 }

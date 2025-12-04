@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router";
 import { useSidebar } from "../context/SidebarContext";
 import { useAuth } from "../context/AuthContext";
+import { ThemeToggleButton } from "../components/common/ThemeToggleButton";
 import NotificationDropdown from "../components/header/NotificationDropdown";
 import UserDropdown from "../components/header/UserDropdown";
 import QuickSearchBar from "../components/header/QuickSearchBar";
@@ -128,7 +129,7 @@ const AppHeader: React.FC = () => {
             {isAdmin && <ProspectsIcon />}
             {/* <!-- Cart Icon  --> */}
             {isAdmin && <CartIcon />}
-            {/* <!-- Dark Mode Toggler
+            {/* <!-- Dark Mode Toggler --> */}
             <ThemeToggleButton />
             {/* <!-- Dark Mode Toggler --> */}
             <NotificationDropdown />
