@@ -50,7 +50,13 @@ export default function MaintenanceModeCard() {
 
       if (response.ok) {
         const data = await response.json();
-        setStatus(data);
+        // Mapper la réponse du backend vers notre interface
+        // Backend retourne { success, maintenance, message }
+        // Notre interface attend { enabled, message }
+        setStatus({
+          enabled: data.maintenance || false,
+          message: data.message,
+        });
       }
     } catch (error) {
       console.error("Erreur lors de la récupération du statut:", error);
@@ -79,7 +85,13 @@ export default function MaintenanceModeCard() {
 
       if (response.ok) {
         const data = await response.json();
-        setStatus(data);
+        // Mapper la réponse du backend vers notre interface
+        // Backend retourne { success, maintenance, message }
+        // Notre interface attend { enabled, message }
+        setStatus({
+          enabled: data.maintenance || false,
+          message: data.message,
+        });
         notify(
           "success",
           enabled ? "Maintenance activée" : "Maintenance désactivée",
