@@ -13,6 +13,7 @@ import {
 import IntegrationBreadcrumb from "../../components/integration/IntegrationBreadcrumb";
 
 import IntegrationCard from "../../components/integration/IntegrationCard";
+import MaintenanceModeCard from "../../components/integration/MaintenanceModeCard";
 
 const integrationData = [
   {
@@ -95,6 +96,22 @@ export default function Integrations() {
         description="This is React.js Support Integrations Page  for TailAdmin - React.js Tailwind CSS Admin Dashboard Template"
       />
       <IntegrationBreadcrumb pageTitle="Integrations" />
+
+      {/* Section Maintenance Mode */}
+      <div className="mb-6">
+        <MaintenanceModeCard />
+      </div>
+
+      {/* Section Autres Intégrations */}
+      <div className="mb-4">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+          Autres intégrations
+        </h2>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          Connectez vos outils préférés pour automatiser vos workflows
+        </p>
+      </div>
+
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
         {integrationData.map((item) => (
           <IntegrationCard

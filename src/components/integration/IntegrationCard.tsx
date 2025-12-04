@@ -13,6 +13,10 @@ interface IntegrationCardProps {
   icon: ReactNode;
   description: string;
   connect: boolean;
+  onToggle?: (checked: boolean) => void;
+  loading?: boolean;
+  badge?: ReactNode;
+  customActions?: ReactNode;
 }
 
 export default function IntegrationCard({
@@ -20,6 +24,10 @@ export default function IntegrationCard({
   icon,
   description,
   connect,
+  onToggle,
+  loading = false,
+  badge,
+  customActions,
 }: IntegrationCardProps) {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -47,36 +55,51 @@ export default function IntegrationCard({
             {description}
           </p>
           <div className="absolute top-5 right-5 h-fit">
-            <button className="dropdown-toggle" onClick={toggleDropdown}>
-              <HorizontaLDots className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 size-6" />
-            </button>
-            <Dropdown
-              isOpen={isOpen}
-              onClose={closeDropdown}
-              className="w-40 p-2"
-            >
-              <DropdownItem
-                onItemClick={deleteModal.openModal}
-                className="flex w-full font-normal text-left text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
-              >
-                Remove
-              </DropdownItem>
-            </Dropdown>
+            {badge || (
+              <>
+                <button className="dropdown-toggle" onClick={toggleDropdown}>
+                  <HorizontaLDots className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 size-6" />
+                </button>
+                <Dropdown
+                  isOpen={isOpen}
+                  onClose={closeDropdown}
+                  className="w-40 p-2"
+                >
+                  <DropdownItem
+                    onItemClick={deleteModal.openModal}
+                    className="flex w-full font-normal text-left text-gray-500 rounded-lg hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+                  >
+                    Remove
+                  </DropdownItem>
+                </Dropdown>
+              </>
+            )}
           </div>
         </div>
 
         <div className="flex items-center justify-between border-t border-gray-200 p-5 dark:border-gray-800">
           <div className="flex gap-3">
-            <IntegrationSettingsModal />
-            <IntegrationDetailsModal />
+            {customActions || (
+              <>
+                <IntegrationSettingsModal />
+                <IntegrationDetailsModal />
+              </>
+            )}
           </div>
-          <Switch defaultChecked={connect} />
+          <Switch
+            key={connect.toString()}
+            defaultChecked={connect}
+            onChange={onToggle}
+            disabled={loading}
+          />
         </div>
       </article>
-      <IntegrationDeleteModal
-        isOpen={deleteModal.isOpen}
-        onClose={deleteModal.closeModal}
-      />
+      {!customActions && (
+        <IntegrationDeleteModal
+          isOpen={deleteModal.isOpen}
+          onClose={deleteModal.closeModal}
+        />
+      )}
     </>
   );
 }
