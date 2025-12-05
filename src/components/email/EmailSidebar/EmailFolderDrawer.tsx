@@ -57,12 +57,13 @@ export default function EmailFolderDrawer({ isOpen, onClose, onFolderCreated }: 
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 z-40 bg-gray-900/50 backdrop-blur-sm transition-opacity"
+        className="fixed inset-0 z-[9998] bg-gray-900/50 backdrop-blur-sm transition-opacity"
         onClick={handleCancel}
+        style={{ pointerEvents: 'auto' }}
       />
 
       {/* Drawer */}
-      <div className="fixed inset-y-0 right-0 z-50 w-full max-w-md transform transition-transform duration-300 ease-in-out">
+      <div className="fixed inset-y-0 right-0 z-[9999] w-full max-w-md transform transition-transform duration-300 ease-in-out">
         <div className="flex flex-col h-full border-l border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900 shadow-2xl">
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-800">

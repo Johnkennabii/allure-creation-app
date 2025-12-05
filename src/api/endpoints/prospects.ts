@@ -1,17 +1,21 @@
 import { httpClient } from "../httpClient";
 
 export type ProspectStatus = "new" | "contacted" | "qualified" | "converted" | "lost";
+export type RequestStatus = "draft" | "sent" | "confirmed" | "cancelled";
 
 export interface ProspectDressInfo {
-  name?: string | null;
-  reference?: string | null;
-  price_per_day_ttc?: number | string | null;
+  id: string;
+  name: string;
+  reference: string;
+  price_per_day_ht: number;
+  price_per_day_ttc: number;
   type?: { name?: string | null } | null;
   size?: { name?: string | null } | null;
   color?: { name?: string | null } | null;
   condition?: { name?: string | null } | null;
 }
 
+// Ancienne interface (rétrocompatibilité)
 export interface ProspectDressReservation {
   id: string;
   dress_id: string;
@@ -23,12 +27,45 @@ export interface ProspectDressReservation {
   dress?: ProspectDressInfo | null;
 }
 
+// Nouvelles interfaces pour les demandes (requests)
+export interface ProspectRequestDress {
+  id: string;
+  request_id: string;
+  dress_id: string;
+  rental_start_date: string;
+  rental_end_date: string;
+  rental_days: number;
+  estimated_price_ht: number;
+  estimated_price_ttc: number;
+  notes?: string | null;
+  created_at: string;
+  dress: ProspectDressInfo;
+}
+
+export interface ProspectRequest {
+  id: string;
+  request_number: string;
+  prospect_id: string;
+  status: RequestStatus;
+  total_estimated_ht: number;
+  total_estimated_ttc: number;
+  notes?: string | null;
+  created_at: string;
+  updated_at?: string | null;
+  dresses: ProspectRequestDress[];
+}
+
 export interface Prospect {
   id: string;
   firstname: string;
   lastname: string;
   email: string;
   phone: string | null;
+  birthday?: string | null;
+  country?: string | null;
+  city?: string | null;
+  address?: string | null;
+  postal_code?: string | null;
   status: ProspectStatus;
   source?: string | null;
   notes?: string | null;
@@ -38,10 +75,14 @@ export interface Prospect {
   created_by?: string | null;
   updated_by?: string | null;
   deleted_by?: string | null;
+  // Ancien système (rétrocompatibilité)
   dress_reservations?: ProspectDressReservation[];
   total_estimated_cost?: number | null;
+  // Nouveau système
+  requests?: ProspectRequest[];
   _count?: {
     dress_reservations?: number;
+    requests?: number;
   };
 }
 
@@ -67,10 +108,18 @@ export type ProspectPayload = {
   lastname: string;
   email: string;
   phone?: string | null;
+  birthday?: string | null;
+  country?: string | null;
+  city?: string | null;
+  address?: string | null;
+  postal_code?: string | null;
   status?: ProspectStatus;
   source?: string | null;
   notes?: string | null;
+  // Ancien système (rétrocompatibilité)
   dress_reservations?: ProspectDressReservationPayload[];
+  // Nouveau système
+  requests?: ProspectRequestPayload[];
 };
 
 export type ProspectDressReservationPayload = {
@@ -79,6 +128,26 @@ export type ProspectDressReservationPayload = {
   rental_start_date: string;
   rental_end_date: string;
   notes?: string | null;
+};
+
+// Nouveaux payloads pour les demandes (requests)
+export type ProspectRequestDressPayload = {
+  dress_id: string;
+  rental_start_date: string;
+  rental_end_date: string;
+  notes?: string | null;
+};
+
+export type ProspectRequestPayload = {
+  dresses: ProspectRequestDressPayload[];
+  notes?: string | null;
+  status?: RequestStatus;
+};
+
+export type ProspectRequestUpdatePayload = {
+  status?: RequestStatus;
+  notes?: string | null;
+  dresses?: ProspectRequestDressPayload[];
 };
 
 const normalizeListResponse = (res: any): ProspectListResponse => {
@@ -162,5 +231,77 @@ export const ProspectsAPI = {
   convertToCustomer: async (prospectId: string) => {
     const res = await httpClient.post(`/prospects/${prospectId}/convert`, {}, { _skipErrorNotification: true });
     return res?.data ?? res;
+  },
+
+  // ===== Gestion des demandes (Requests) =====
+
+  /**
+   * Liste toutes les demandes d'un prospect
+   */
+  listRequests: async (prospectId: string): Promise<ProspectRequest[]> => {
+    const res = await httpClient.get(`/prospects/${prospectId}/requests`);
+    if (res?.success && Array.isArray(res?.data)) {
+      return res.data as ProspectRequest[];
+    }
+    if (Array.isArray(res?.data)) {
+      return res.data as ProspectRequest[];
+    }
+    if (Array.isArray(res)) {
+      return res as ProspectRequest[];
+    }
+    return [];
+  },
+
+  /**
+   * Récupère une demande spécifique
+   */
+  getRequest: async (prospectId: string, requestId: string): Promise<ProspectRequest> => {
+    const res = await httpClient.get(`/prospects/${prospectId}/requests/${requestId}`);
+    if (res?.success && res?.data) {
+      return res.data as ProspectRequest;
+    }
+    if (res?.data) {
+      return res.data as ProspectRequest;
+    }
+    return res as ProspectRequest;
+  },
+
+  /**
+   * Crée une nouvelle demande pour un prospect
+   */
+  createRequest: async (prospectId: string, payload: ProspectRequestPayload): Promise<ProspectRequest> => {
+    const res = await httpClient.post(`/prospects/${prospectId}/requests`, payload);
+    if (res?.success && res?.data) {
+      return res.data as ProspectRequest;
+    }
+    if (res?.data) {
+      return res.data as ProspectRequest;
+    }
+    return res as ProspectRequest;
+  },
+
+  /**
+   * Modifie une demande existante
+   */
+  updateRequest: async (
+    prospectId: string,
+    requestId: string,
+    payload: ProspectRequestUpdatePayload
+  ): Promise<ProspectRequest> => {
+    const res = await httpClient.patch(`/prospects/${prospectId}/requests/${requestId}`, payload);
+    if (res?.success && res?.data) {
+      return res.data as ProspectRequest;
+    }
+    if (res?.data) {
+      return res.data as ProspectRequest;
+    }
+    return res as ProspectRequest;
+  },
+
+  /**
+   * Supprime une demande (soft delete)
+   */
+  deleteRequest: async (prospectId: string, requestId: string): Promise<void> => {
+    await httpClient.delete(`/prospects/${prospectId}/requests/${requestId}`);
   },
 };
