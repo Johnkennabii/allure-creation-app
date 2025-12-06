@@ -4,28 +4,21 @@ import Input from "../../../components/form/input/InputField";
 import Select from "../../../components/form/Select";
 import Label from "../../../components/form/Label";
 import Button from "../../../components/ui/button/Button";
-import type { Prospect, ProspectStatus } from "../../../api/endpoints/prospects";
+import DressCombobox, { type DressComboboxOption } from "../../../components/form/DressCombobox";
+import type { Prospect, ProspectStatus, ProspectDressInfo } from "../../../api/endpoints/prospects";
 import { formatCurrency } from "../../../utils/formatters";
 
-type DressReservationForm = {
+export type DressReservationForm = {
   clientId: string;
   id?: string;
   dress_id: string;
-  dress?: {
-    name?: string | null;
-    reference?: string | null;
-    price_per_day_ttc?: number | string | null;
-    type?: { name?: string | null } | null;
-    size?: { name?: string | null } | null;
-    color?: { name?: string | null } | null;
-    condition?: { name?: string | null } | null;
-  } | null;
+  dress?: ProspectDressInfo | null;
   rental_start_date: string;
   rental_end_date: string;
   notes: string;
 };
 
-type ProspectFormState = {
+export type ProspectFormState = {
   firstname: string;
   lastname: string;
   email: string;
@@ -51,7 +44,9 @@ interface ProspectFormDrawerProps {
     field: "rental_start_date" | "rental_end_date" | "notes",
     value: string
   ) => void;
-  onOpenDressPicker: (reservationId: string) => void;
+  onDressChange: (reservationId: string, dressId: string) => void;
+  onDatesChange: (reservationId: string, startDate: string, endDate: string) => void;
+  dressOptions: DressComboboxOption[];
   computeLocalReservationEstimates: (reservation: DressReservationForm) => { rentalDays: number; estimatedCost: number };
 }
 
@@ -66,7 +61,9 @@ export default function ProspectFormDrawer({
   onAddReservation,
   onRemoveReservation,
   onReservationFieldChange,
-  onOpenDressPicker,
+  onDressChange,
+  onDatesChange,
+  dressOptions,
   computeLocalReservationEstimates,
 }: ProspectFormDrawerProps) {
   const totalLocalEstimatedCost = useMemo(
@@ -275,15 +272,17 @@ export default function ProspectFormDrawer({
                       </div>
 
                       <div className="mt-3">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => onOpenDressPicker(reservation.clientId)}
-                          className="w-full"
-                        >
-                          {reservation.dress ? "Changer de robe" : "Sélectionner une robe"}
-                        </Button>
+                        <Label className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                          Robe {reservation.dress_id ? "" : <span className="text-red-500">*</span>}
+                        </Label>
+                        <DressCombobox
+                          options={dressOptions}
+                          value={reservation.dress_id}
+                          onChange={(dressId) => onDressChange(reservation.clientId, dressId)}
+                          placeholder="Rechercher une robe..."
+                          disabled={submitting}
+                          emptyMessage="Aucune robe disponible"
+                        />
                       </div>
 
                       <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -292,9 +291,12 @@ export default function ProspectFormDrawer({
                           <Input
                             type="date"
                             value={reservation.rental_start_date}
-                            onChange={(event) =>
-                              onReservationFieldChange(reservation.clientId, "rental_start_date", event.target.value)
-                            }
+                            onChange={(event) => {
+                              const newStartDate = event.target.value;
+                              onReservationFieldChange(reservation.clientId, "rental_start_date", newStartDate);
+                              // Mettre à jour la disponibilité des robes quand les dates changent
+                              onDatesChange(reservation.clientId, newStartDate, reservation.rental_end_date);
+                            }}
                             className="mt-1"
                           />
                         </div>
@@ -303,9 +305,12 @@ export default function ProspectFormDrawer({
                           <Input
                             type="date"
                             value={reservation.rental_end_date}
-                            onChange={(event) =>
-                              onReservationFieldChange(reservation.clientId, "rental_end_date", event.target.value)
-                            }
+                            onChange={(event) => {
+                              const newEndDate = event.target.value;
+                              onReservationFieldChange(reservation.clientId, "rental_end_date", newEndDate);
+                              // Mettre à jour la disponibilité des robes quand les dates changent
+                              onDatesChange(reservation.clientId, reservation.rental_start_date, newEndDate);
+                            }}
                             className="mt-1"
                           />
                         </div>

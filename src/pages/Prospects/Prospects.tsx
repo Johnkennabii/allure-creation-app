@@ -19,15 +19,14 @@ import {
   type ProspectStatus,
   type ProspectPayload,
   type ProspectDressReservation,
-  type ProspectDressInfo,
 } from "../../api/endpoints/prospects";
-import type { DressDetails } from "../../api/endpoints/dresses";
+import { DressesAPI } from "../../api/endpoints/dresses";
+import type { DressComboboxOption } from "../../components/form/DressCombobox";
 import { PencilIcon, TrashBinIcon } from "../../icons";
 import { IoEyeOutline } from "react-icons/io5";
 import { formatCurrency, formatDateTimeShort } from "../../utils/formatters";
-import ProspectFormDrawer from "./components/ProspectFormDrawer";
+import ProspectFormDrawer, { type DressReservationForm, type ProspectFormState } from "./components/ProspectFormDrawer";
 import ProspectDetailsDrawer from "./components/ProspectDetailsDrawer";
-import DressPickerModal from "./components/DressPickerModal";
 
 interface ProspectRow extends Prospect {
   fullName: string;
@@ -35,27 +34,6 @@ interface ProspectRow extends Prospect {
   reservationCount: number;
   totalEstimatedCostValue: number;
 }
-
-type DressReservationForm = {
-  clientId: string;
-  id?: string;
-  dress_id: string;
-  dress?: ProspectDressInfo | null;
-  rental_start_date: string;
-  rental_end_date: string;
-  notes: string;
-};
-
-type ProspectFormState = {
-  firstname: string;
-  lastname: string;
-  email: string;
-  phone: string;
-  status: ProspectStatus;
-  source: string;
-  notes: string;
-  dressReservations: DressReservationForm[];
-};
 
 type ConfirmState = {
   mode: "soft" | "hard" | "convert";
@@ -104,7 +82,8 @@ const parseDateInput = (value: string): Date | null => {
   if (!value) return null;
   const [year, month, day] = value.split("-").map((part) => Number(part));
   if (!year || !month || !day) return null;
-  const date = new Date(year, month - 1, day);
+  // Utiliser UTC pour éviter les problèmes de fuseau horaire
+  const date = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
@@ -114,6 +93,7 @@ const computeRentalDaysFromInput = (start: string, end: string): number => {
   if (!startDate || !endDate) return 0;
   const diff = endDate.getTime() - startDate.getTime();
   if (diff < 0) return 0;
+  // Calcul inclusif : du 1er au 2 = 2 jours (1er + 2ème)
   return Math.floor(diff / (1000 * 60 * 60 * 24)) + 1;
 };
 
@@ -153,10 +133,7 @@ const Prospects: React.FC = () => {
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [viewingProspect, setViewingProspect] = useState<Prospect | null>(null);
-  const [dressPickerState, setDressPickerState] = useState<{ open: boolean; reservationId: string | null }>({
-    open: false,
-    reservationId: null,
-  });
+  const [dressOptions, setDressOptions] = useState<DressComboboxOption[]>([]);
 
   // Charger les prospects
   const loadProspects = useCallback(async () => {
@@ -180,6 +157,47 @@ const Prospects: React.FC = () => {
   useEffect(() => {
     loadProspects();
   }, [loadProspects]);
+
+  // Charger les robes disponibles avec vérification de disponibilité par dates
+  const loadDressOptionsWithAvailability = useCallback(async (reservationId: string, startDate: string, endDate: string) => {
+    if (!startDate || !endDate) {
+      // Si pas de dates, on charge toutes les robes sans vérification de disponibilité
+      try {
+        const response = await DressesAPI.listDetails({ limit: 1000 });
+        const options: DressComboboxOption[] = response.data.map((dress) => ({
+          id: dress.id,
+          name: dress.name,
+          reference: dress.reference,
+          isAvailable: true,
+        }));
+        setDressOptions(options);
+      } catch (error: any) {
+        console.error("Error loading dress options:", error);
+        notify("error", "Erreur", "Impossible de charger les robes");
+      }
+      return;
+    }
+
+    // Vérifier la disponibilité avec les dates
+    try {
+      const response = await DressesAPI.listAvailability(startDate, endDate);
+      const options: DressComboboxOption[] = response.data.map((dress) => ({
+        id: dress.id,
+        name: dress.name || "",
+        reference: dress.reference || "",
+        isAvailable: dress.isAvailable,
+      }));
+      setDressOptions(options);
+    } catch (error: any) {
+      console.error("Error loading dress availability:", error);
+      notify("error", "Erreur", "Impossible de vérifier la disponibilité des robes");
+    }
+  }, [notify]);
+
+  // Charger toutes les robes au départ
+  useEffect(() => {
+    loadDressOptionsWithAvailability("", "", "");
+  }, [loadDressOptionsWithAvailability]);
 
   // Gestion du formulaire
   const openDrawerForCreate = () => {
@@ -257,37 +275,41 @@ const Prospects: React.FC = () => {
     }));
   };
 
-  const openDressPicker = (reservationId: string) => {
-    setDressPickerState({ open: true, reservationId });
+  const handleDatesChange = (reservationId: string, startDate: string, endDate: string) => {
+    // Charger les robes disponibles avec les nouvelles dates
+    loadDressOptionsWithAvailability(reservationId, startDate, endDate);
   };
 
-  const closeDressPicker = () => {
-    setDressPickerState({ open: false, reservationId: null });
-  };
+  const handleDressChange = async (reservationId: string, dressId: string) => {
+    try {
+      // Charger les détails de la robe sélectionnée
+      const dress = await DressesAPI.getById(dressId);
 
-  const handleSelectDress = (dress: DressDetails) => {
-    if (!dressPickerState.reservationId) return;
-    setFormState((prev) => ({
-      ...prev,
-      dressReservations: prev.dressReservations.map((reservation) =>
-        reservation.clientId === dressPickerState.reservationId
-          ? {
-              ...reservation,
-              dress_id: dress.id,
-              dress: {
-                name: dress.name,
-                reference: dress.reference,
-                price_per_day_ttc: dress.price_per_day_ttc ?? dress.price_per_day_ht ?? 0,
-                type: dress.type ? { name: dress.type.name } : null,
-                size: dress.size ? { name: dress.size.name } : null,
-                color: dress.color ? { name: dress.color.name } : null,
-                condition: dress.condition ? { name: dress.condition.name } : null,
-              },
-            }
-          : reservation,
-      ),
-    }));
-    closeDressPicker();
+      setFormState((prev) => ({
+        ...prev,
+        dressReservations: prev.dressReservations.map((reservation) =>
+          reservation.clientId === reservationId
+            ? {
+                ...reservation,
+                dress_id: dress.id,
+                dress: {
+                  id: dress.id,
+                  name: dress.name,
+                  reference: dress.reference,
+                  price_per_day_ttc: toNumericValue(dress.price_per_day_ttc ?? dress.price_per_day_ht ?? 0),
+                  price_per_day_ht: toNumericValue(dress.price_per_day_ht ?? 0),
+                  type: dress.type ? { name: dress.type.name } : null,
+                  size: dress.size ? { name: dress.size.name } : null,
+                  color: dress.color ? { name: dress.color.name } : null,
+                  condition: dress.condition ? { name: dress.condition.name } : null,
+                },
+              }
+            : reservation,
+        ),
+      }));
+    } catch (error: any) {
+      notify("error", "Erreur", "Impossible de charger les détails de la robe");
+    }
   };
 
   const handleSubmit = async () => {
@@ -668,7 +690,9 @@ const Prospects: React.FC = () => {
         onAddReservation={handleAddReservation}
         onRemoveReservation={handleRemoveReservation}
         onReservationFieldChange={handleReservationFieldChange}
-        onOpenDressPicker={openDressPicker}
+        onDressChange={handleDressChange}
+        onDatesChange={handleDatesChange}
+        dressOptions={dressOptions}
         computeLocalReservationEstimates={computeLocalReservationEstimates}
       />
 
@@ -727,13 +751,6 @@ const Prospects: React.FC = () => {
         isOpen={!!viewingProspect}
         onClose={closeProspectDetails}
         prospect={viewingProspect}
-      />
-
-      {/* Modal de sélection de robe */}
-      <DressPickerModal
-        isOpen={dressPickerState.open}
-        onClose={closeDressPicker}
-        onSelectDress={handleSelectDress}
       />
     </>
   );
